@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Agent home · Telecom Portal{% endblock %}
+
+{% block content %}
+  <div class="container py-4">
+    <h1 class="h3 mb-3">Agent home</h1>
+    <p class="lead text-muted">Signed in as {{ request.user.username }}.</p>
+
+    <div class="card mb-4">
+      <div class="card-header">Assigned complaints queue</div>
+      <div class="card-body">
+        <p class="mb-0 text-muted">
+          The assigned queue and workbench will appear here once the Complaints module is implemented.
+        </p>
+      </div>
+    </div>
+
+    <div class="card border-secondary">
+      <div class="card-body">
+        <h2 class="h6">Quick link</h2>
+        <p class="small text-muted mb-0">
+          Navigation will include routes like <code>/agent/complaints/</code> in a future phase.
+        </p>
+      </div>
+    </div>
+  </div>
+{% endblock %}

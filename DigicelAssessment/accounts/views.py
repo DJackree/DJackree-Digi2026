@@ -13,7 +13,9 @@ from django.urls import reverse, reverse_lazy
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from accounts.decorators import role_required
+from accounts.forms import BootstrapAuthenticationForm
 from accounts.models import UserProfile
+from customers.services import get_customer_account_for_user
 
 
 # Reverse name for the login page (used instead of hardcoding "/accounts/login/").
@@ -30,6 +32,7 @@ class RoleAwareLoginView(LoginView):
     """Login view that respects safe ?next URLs, otherwise routes by profile role."""
 
     template_name = "accounts/login.html"
+    authentication_form = BootstrapAuthenticationForm
     # If someone already logged in hits /accounts/login/, skip the form and redirect onward.
     redirect_authenticated_user = True
 
@@ -119,28 +122,27 @@ class RoleLogoutView(LogoutView):
     next_page = reverse_lazy("accounts:login")
 
 
-def _phase2_role_placeholder(request: object, heading: str) -> object:
-    """Minimal Phase 2 page body; Phase 3 replaces with Bootstrap layout."""
-
-    return render(request, "accounts/role_home.html", {"heading": heading})
-
-
 @role_required(UserProfile.Role.CUSTOMER)
 def customer_home(request):
-    """Customer-only landing stub (decorator blocks agents/admins)."""
+    """Customer landing (Bootstrap Phase 3)."""
 
-    return _phase2_role_placeholder(request, "Customer home")
+    account = get_customer_account_for_user(request.user)
+    return render(
+        request,
+        "accounts/landing_customer.html",
+        {"account": account},
+    )
 
 
 @role_required(UserProfile.Role.AGENT)
 def agent_home(request):
-    """Agent-only landing stub."""
+    """Agent landing (Bootstrap Phase 3)."""
 
-    return _phase2_role_placeholder(request, "Agent home")
+    return render(request, "accounts/landing_agent.html")
 
 
 @role_required(UserProfile.Role.ADMIN)
 def admin_home(request):
-    """Admin-only landing stub."""
+    """Admin landing (Bootstrap Phase 3)."""
 
-    return _phase2_role_placeholder(request, "Admin portal")
+    return render(request, "accounts/landing_admin.html")
