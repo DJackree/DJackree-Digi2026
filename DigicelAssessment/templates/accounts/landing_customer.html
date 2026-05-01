@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Customer home · Telecom Portal{% endblock %}
+
+{% block content %}
+  <div class="container py-4">
+    <h1 class="h3 mb-3">Customer home</h1>
+    <p class="lead text-muted">Welcome back, {{ request.user.username }}.</p>
+
+    {% if account %}
+      <div class="card mb-4">
+        <div class="card-header">Account summary</div>
+        <div class="card-body">
+          <dl class="row mb-0">
+            <dt class="col-sm-3">Account number</dt>
+            <dd class="col-sm-9">{{ account.account_number }}</dd>
+            <dt class="col-sm-3">Plan</dt>
+            <dd class="col-sm-9">{{ account.service_plan.name }}</dd>
+            <dt class="col-sm-3">Balance</dt>
+            <dd class="col-sm-9">{{ account.current_balance }}</dd>
+            <dt class="col-sm-3">Region</dt>
+            <dd class="col-sm-9">{{ account.region }}</dd>
+          </dl>
+        </div>
+      </div>
+    {% else %}
+      <div class="alert alert-warning">No customer account is linked to this user.</div>
+    {% endif %}
+
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div class="card h-100 border-secondary">
+          <div class="card-body">
+            <h2 class="h6">Complaints</h2>
+            <p class="small text-muted mb-0">Complaint list is available after the Complaints module is implemented.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card h-100 border-secondary">
+          <div class="card-body">
+            <h2 class="h6">New complaint</h2>
+            <p class="small text-muted mb-0">Submit flow will be added in the Complaints module.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card h-100 border-secondary">
+          <div class="card-body">
+            <h2 class="h6">Chatbot</h2>
+            <p class="small text-muted mb-0">Account Q&amp;A chat will be added in the Chatbot module.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

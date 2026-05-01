@@ -3,6 +3,8 @@
 import os
 from pathlib import Path
 
+from django.contrib.messages import constants as message_constants
+
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -102,4 +104,12 @@ _csrf_origins = os.environ.get(
     "http://localhost:8000,http://127.0.0.1:8000",
 )
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in _csrf_origins.split(",") if origin.strip()]
+
+MESSAGE_TAGS = {
+    message_constants.DEBUG: "secondary",
+    message_constants.INFO: "info",
+    message_constants.SUCCESS: "success",
+    message_constants.WARNING: "warning",
+    message_constants.ERROR: "danger",
+}
 

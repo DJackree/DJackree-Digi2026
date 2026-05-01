@@ -34,3 +34,11 @@ python manage.py runserver
 ## Seeded demo users
 
 See repo root README or `core/management/commands/seed_data.py` for credential defaults (`admin`, `agent1`, `customer1`).
+
+## Phase 3: Bootstrap UI (shared layout)
+
+- Shared Bootstrap 5 base template (`templates/base.html`): role-aware nav, Django messages as dismissible alerts, POST logout in the navbar.
+- Login (`/accounts/login/`) uses [`accounts/forms.py`](accounts/forms.py) `BootstrapAuthenticationForm` for Bootstrap field styling.
+- Landing pages: `customer/`, `agent/`, `admin-portal/` (`templates/accounts/landing_*.html`).
+
+**Quick verification:** sign in as `customer1`, `agent1`, and `admin` and confirm navbar items match each role (placeholders explain upcoming Complaints/Dashboard/Chatbot work). Visiting `/admin-portal/` while logged in as a customer must still return **403**.

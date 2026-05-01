@@ -1,18 +1,47 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Login · Telecom Portal</title>
-  </head>
-  <body>
-    <main>
-      <h1>Sign in</h1>
-      <form method="post" action="">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Log in</button>
-      </form>
-    </main>
-  </body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}Sign in · Telecom Portal{% endblock %}
+
+{% block content %}
+  <div class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-12 col-md-6 col-lg-5">
+        <div class="card shadow-sm">
+          <div class="card-body p-4">
+            <h1 class="h4 mb-3">Sign in</h1>
+            <form method="post" action="">
+              {% csrf_token %}
+              {% if form.non_field_errors %}
+                <div class="alert alert-danger mb-3" role="alert">
+                  {% for error in form.non_field_errors %}
+                    <div>{{ error }}</div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+              {% for field in form %}
+                {% if field.is_hidden %}
+                  {{ field }}
+                {% else %}
+                  <div class="mb-3">
+                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {% if field.errors %}
+                      <div class="invalid-feedback d-block text-danger small">
+                        {% for error in field.errors %}
+                          <div>{{ error }}</div>
+                        {% endfor %}
+                      </div>
+                    {% endif %}
+                    {{ field }}
+                  </div>
+                {% endif %}
+              {% endfor %}
+              <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary">Log in</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
