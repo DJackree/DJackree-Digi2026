@@ -1,0 +1,17 @@
+.git
+.idea
+.cursor
+.cursorignore
+
+.env
+*.env.local
+
+.venv
+venv/
+__pycache__/
+*.py[cod]
+*.sqlite3
+
+staticfiles/
+.pytest_cache/
+.mypy_cache/
