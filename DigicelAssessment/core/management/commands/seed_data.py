@@ -1,4 +1,4 @@
-"""Foundation seed data for Phase 1 (users, profiles, plans, accounts, usage, payments)."""
+"""Foundation seed data: users, profiles, plans, accounts, complaints demo (Phase 1 module)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,9 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import UserProfile
+from complaints.models import Complaint, ComplaintNote, ComplaintStatusHistory
 from customers.models import AccountUsage, CustomerAccount, Payment, ServicePlan
+from network.models import NetworkOutage
 
 
 PLANS = [
@@ -50,6 +52,276 @@ CUSTOMER_SEED = [
 DEFAULT_PASSWORD_ADMIN = "AdminPass123!"
 DEFAULT_PASSWORD_AGENT = "AgentPass123!"
 DEFAULT_PASSWORD_CUSTOMER = "CustomerPass123!"
+
+
+def _seed_complaints_and_outages(
+    *,
+    admin_user: User,
+    agent_users: dict[str, User],
+    accounts_by_username: dict[str, CustomerAccount],
+) -> None:
+    """Create demo complaints, history, notes, and outages (single-shot seed)."""
+    year = timezone.now().year
+    now = timezone.now()
+
+    def chain_to_statuses(final: str) -> list[str]:
+        """Minimal forward chains ending at final status."""
+        if final == Complaint.Status.OPEN:
+            return [Complaint.Status.OPEN]
+        if final == Complaint.Status.IN_PROGRESS:
+            return [Complaint.Status.OPEN, Complaint.Status.IN_PROGRESS]
+        if final == Complaint.Status.ESCALATED:
+            return [
+                Complaint.Status.OPEN,
+                Complaint.Status.IN_PROGRESS,
+                Complaint.Status.ESCALATED,
+            ]
+        if final == Complaint.Status.RESOLVED:
+            return [
+                Complaint.Status.OPEN,
+                Complaint.Status.IN_PROGRESS,
+                Complaint.Status.RESOLVED,
+            ]
+        if final == Complaint.Status.CLOSED:
+            return [
+                Complaint.Status.OPEN,
+                Complaint.Status.IN_PROGRESS,
+                Complaint.Status.ESCALATED,
+                Complaint.Status.RESOLVED,
+                Complaint.Status.CLOSED,
+            ]
+        raise ValueError(f"Unknown final status: {final}")
+
+    specs: list[dict] = [
+        {
+            "ref": f"CMP-{year}-0001",
+            "customer": "customer1",
+            "category": Complaint.Category.BILLING,
+            "status": Complaint.Status.OPEN,
+            "agent": None,
+            "days_ago": 2,
+            "description": "Incorrect charge on last month's bill.",
+            "escalation_reason": "",
+            "add_note": False,
+        },
+        {
+            "ref": f"CMP-{year}-0002",
+            "customer": "customer2",
+            "category": Complaint.Category.NETWORK,
+            "status": Complaint.Status.OPEN,
+            "agent": "agent1",
+            "days_ago": 8,
+            "description": "Mobile data unavailable intermittently for several days.",
+            "escalation_reason": "",
+            "add_note": True,
+        },
+        {
+            "ref": f"CMP-{year}-0003",
+            "customer": "customer3",
+            "category": Complaint.Category.DEVICE,
+            "status": Complaint.Status.IN_PROGRESS,
+            "agent": "agent2",
+            "days_ago": 10,
+            "description": "SIM not detected after replacement handset.",
+            "escalation_reason": "",
+            "add_note": True,
+        },
+        {
+            "ref": f"CMP-{year}-0004",
+            "customer": "customer4",
+            "category": Complaint.Category.ROAMING,
+            "status": Complaint.Status.IN_PROGRESS,
+            "agent": "agent3",
+            "days_ago": 1,
+            "description": "Roaming package not activating abroad.",
+            "escalation_reason": "",
+            "add_note": False,
+        },
+        {
+            "ref": f"CMP-{year}-0005",
+            "customer": "customer5",
+            "category": Complaint.Category.NETWORK,
+            "status": Complaint.Status.ESCALATED,
+            "agent": "agent1",
+            "days_ago": 3,
+            "description": "Tower outage suspected near home address.",
+            "escalation_reason": "Correlated with wider regional routing issue.",
+            "add_note": True,
+        },
+        {
+            "ref": f"CMP-{year}-0006",
+            "customer": "customer1",
+            "category": Complaint.Category.OTHER,
+            "status": Complaint.Status.ESCALATED,
+            "agent": None,
+            "days_ago": 4,
+            "description": "General account enquiry escalated for specialist review.",
+            "escalation_reason": "Requires billing policy exception.",
+            "add_note": False,
+        },
+        {
+            "ref": f"CMP-{year}-0007",
+            "customer": "customer2",
+            "category": Complaint.Category.BILLING,
+            "status": Complaint.Status.RESOLVED,
+            "agent": "agent2",
+            "days_ago": 14,
+            "description": "Duplicate payment showing on statement.",
+            "escalation_reason": "",
+            "add_note": True,
+        },
+        {
+            "ref": f"CMP-{year}-0008",
+            "customer": "customer3",
+            "category": Complaint.Category.DEVICE,
+            "status": Complaint.Status.RESOLVED,
+            "agent": "agent3",
+            "days_ago": 5,
+            "description": "VoLTE toggle missing after OS update.",
+            "escalation_reason": "",
+            "add_note": False,
+        },
+        {
+            "ref": f"CMP-{year}-0009",
+            "customer": "customer4",
+            "category": Complaint.Category.NETWORK,
+            "status": Complaint.Status.CLOSED,
+            "agent": "agent1",
+            "days_ago": 20,
+            "description": "Dropped calls on highway corridor.",
+            "escalation_reason": "",
+            "add_note": True,
+        },
+        {
+            "ref": f"CMP-{year}-0010",
+            "customer": "customer5",
+            "category": Complaint.Category.ROAMING,
+            "status": Complaint.Status.CLOSED,
+            "agent": "agent2",
+            "days_ago": 25,
+            "description": "Incorrect roaming rates applied while traveling.",
+            "escalation_reason": "",
+            "add_note": False,
+        },
+        {
+            "ref": f"CMP-{year}-0011",
+            "customer": "customer1",
+            "category": Complaint.Category.OTHER,
+            "status": Complaint.Status.OPEN,
+            "agent": "agent3",
+            "days_ago": 1,
+            "description": "Request callback about plan upgrade options.",
+            "escalation_reason": "",
+            "add_note": True,
+        },
+        {
+            "ref": f"CMP-{year}-0012",
+            "customer": "customer2",
+            "category": Complaint.Category.BILLING,
+            "status": Complaint.Status.IN_PROGRESS,
+            "agent": None,
+            "days_ago": 2,
+            "description": "Auto-pay failed twice this month.",
+            "escalation_reason": "",
+            "add_note": False,
+        },
+        {
+            "ref": f"CMP-{year}-0013",
+            "customer": "customer3",
+            "category": Complaint.Category.DEVICE,
+            "status": Complaint.Status.ESCALATED,
+            "agent": "agent2",
+            "days_ago": 6,
+            "description": "Device replacement delayed beyond SLA.",
+            "escalation_reason": "Warehouse stock discrepancy.",
+            "add_note": True,
+        },
+        {
+            "ref": f"CMP-{year}-0014",
+            "customer": "customer4",
+            "category": Complaint.Category.ROAMING,
+            "status": Complaint.Status.RESOLVED,
+            "agent": None,
+            "days_ago": 12,
+            "description": "Data roaming cap hit unexpectedly.",
+            "escalation_reason": "",
+            "add_note": False,
+        },
+        {
+            "ref": f"CMP-{year}-0015",
+            "customer": "customer5",
+            "category": Complaint.Category.OTHER,
+            "status": Complaint.Status.CLOSED,
+            "agent": "agent3",
+            "days_ago": 18,
+            "description": "Port-out request completed with delays.",
+            "escalation_reason": "",
+            "add_note": False,
+        },
+    ]
+
+    for spec in specs:
+        account = accounts_by_username[spec["customer"]]
+        agent_user = agent_users[spec["agent"]] if spec["agent"] else None
+        created_at = now - timedelta(days=int(spec["days_ago"]))
+        status_chain = chain_to_statuses(spec["status"])
+
+        complaint = Complaint(
+            reference=spec["ref"],
+            customer_account=account,
+            category=spec["category"],
+            description=spec["description"],
+            status=spec["status"],
+            assigned_agent=agent_user,
+            escalation_reason=spec.get("escalation_reason", ""),
+        )
+        if spec["status"] in (Complaint.Status.RESOLVED, Complaint.Status.CLOSED):
+            complaint.resolved_at = created_at + timedelta(days=2)
+        complaint.save()
+        Complaint.objects.filter(pk=complaint.pk).update(created_at=created_at)
+
+        prev = ""
+        for step_i, to_status in enumerate(status_chain):
+            actor = agent_user or admin_user
+            hist = ComplaintStatusHistory.objects.create(
+                complaint=complaint,
+                changed_by=actor,
+                from_status=prev,
+                to_status=to_status,
+                note="Seeded transition." if step_i else "Complaint opened.",
+            )
+            ComplaintStatusHistory.objects.filter(pk=hist.pk).update(
+                created_at=created_at + timedelta(minutes=step_i + 1)
+            )
+            prev = to_status
+
+        if spec.get("add_note") and agent_user:
+            note = ComplaintNote.objects.create(
+                complaint=complaint,
+                author=agent_user,
+                body="Internal note: customer contacted; troubleshooting in progress.",
+                is_internal=True,
+            )
+            ComplaintNote.objects.filter(pk=note.pk).update(
+                created_at=created_at + timedelta(hours=2)
+            )
+
+    NetworkOutage.objects.create(
+        region="Kingston",
+        title="Backbone maintenance — Kingston metro",
+        description="Fiber splice work affecting peak-hour throughput in Kingston.",
+        started_at=now - timedelta(hours=3),
+        estimated_resolution_at=now + timedelta(hours=5),
+        is_active=True,
+    )
+    NetworkOutage.objects.create(
+        region="Montego Bay",
+        title="Resolved: cable damage near airport",
+        description="Third-party construction damaged a feeder cable; traffic rerouted.",
+        started_at=now - timedelta(days=3),
+        estimated_resolution_at=now - timedelta(days=2),
+        is_active=False,
+    )
 
 
 class Command(BaseCommand):
@@ -132,6 +404,9 @@ class Command(BaseCommand):
                 )
                 customers_users.append((u, region))
 
+            agent_users = {f"agent{i}": User.objects.get(username=f"agent{i}") for i in range(1, 4)}
+            accounts_by_username: dict[str, CustomerAccount] = {}
+
             for idx, (user, region) in enumerate(customers_users):
                 acct_no = f"ACC-2026-{idx + 1:04d}"
                 plan = plans[idx % len(plans)]
@@ -143,6 +418,7 @@ class Command(BaseCommand):
                     current_balance=balance,
                     region=region,
                 )
+                accounts_by_username[user.username] = account
                 AccountUsage.objects.create(
                     account=account,
                     period_start=period_start,
@@ -158,8 +434,15 @@ class Command(BaseCommand):
                     reference=f"PAY-{acct_no}-{idx}",
                 )
 
+            _seed_complaints_and_outages(
+                admin_user=admin_user,
+                agent_users=agent_users,
+                accounts_by_username=accounts_by_username,
+            )
+
         self.stdout.write(
             self.style.SUCCESS(
-                "Seeded foundation: admin + 3 agents + 5 customers, plans, accounts, usage, payments."
+                "Seeded foundation: admin + 3 agents + 5 customers, plans, accounts, usage, payments, "
+                "complaints module demo (15 complaints, history, notes, outages)."
             )
         )
