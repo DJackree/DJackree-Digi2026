@@ -27,6 +27,14 @@ class ComplaintCreateForm(forms.Form):
         ),
     )
 
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        if self.is_bound:
+            for fname, field in self.fields.items():
+                if fname in self.errors:
+                    wcls = field.widget.attrs.get("class", "")
+                    field.widget.attrs["class"] = f"{wcls} is-invalid".strip()
+
     def clean_description(self):
         text = self.cleaned_data["description"].strip()
         if len(text) < MIN_DESCRIPTION_LEN:

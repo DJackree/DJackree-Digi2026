@@ -1,100 +1,123 @@
 {% extends "base.html" %}
+{% load complaint_tags %}
 {% block title %}Admin · {{ complaint.reference }}{% endblock %}
 {% block content %}
   <div class="container py-4">
     <div class="mb-3 d-flex gap-3 flex-wrap">
-      <a href="{% url 'complaints:admin_complaint_list' %}">&larr; All complaints</a>
-      <a href="{% url 'dashboard:admin_dashboard' %}">Dashboard</a>
+      <a class="text-decoration-none" href="{% url 'complaints:admin_complaint_list' %}">&larr; All complaints</a>
+      <a class="text-decoration-none" href="{% url 'dashboard:admin_dashboard' %}">Dashboard</a>
     </div>
 
-    <div class="alert alert-warning">
-      Admin actions are audited via status history and internal notes.
+    <div class="alert alert-danger border-danger">
+      <div class="fw-semibold mb-1">Admin overrides are audited</div>
+      <div class="small mb-0">
+        Assignment changes create internal notes. Status overrides write to status history (and may create internal audit notes when provided).
+      </div>
     </div>
 
     <div class="row g-4">
       <div class="col-lg-7">
-        <div class="bg-white shadow-sm rounded p-4 mb-4">
-          <h1 class="h4">{{ complaint.reference }}</h1>
-          <p class="mb-2">
-            Customer: <strong>{{ complaint.customer_account.user.username }}</strong>
-            · Account: <strong>{{ complaint.customer_account.account_number }}</strong>
-          </p>
-          <p class="mb-2">
-            Assigned agent:
-            {% if complaint.assigned_agent %}
-              <strong>{{ complaint.assigned_agent.username }}</strong>
-            {% else %}
-              <span class="text-muted">Unassigned</span>
-            {% endif %}
-          </p>
-          <p class="mb-2">
-            Category: <strong>{{ complaint.get_category_display }}</strong>
-            · Status: <strong>{{ complaint.get_status_display }}</strong>
-          </p>
+        <div class="bg-white shadow-sm rounded border p-4 mb-4">
+          <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+            <h1 class="h4 mb-0">{{ complaint.reference }}</h1>
+            {% complaint_status_badge_class complaint.status as sb %}
+            <span class="badge text-bg-{{ sb }}">{{ complaint.get_status_display }}</span>
+            {% complaint_category_badge_class complaint.category as cb %}
+            <span class="badge text-bg-{{ cb }}">{{ complaint.get_category_display }}</span>
+          </div>
+
+          <dl class="row mb-0 small">
+            <dt class="col-sm-4 text-muted">Customer</dt>
+            <dd class="col-sm-8">{{ complaint.customer_account.user.username }}</dd>
+            <dt class="col-sm-4 text-muted">Account</dt>
+            <dd class="col-sm-8">{{ complaint.customer_account.account_number }} · {{ complaint.customer_account.region }}</dd>
+            <dt class="col-sm-4 text-muted">Assigned agent</dt>
+            <dd class="col-sm-8">
+              {% if complaint.assigned_agent %}
+                <span class="badge text-bg-light border">{{ complaint.assigned_agent.username }}</span>
+              {% else %}
+                <span class="text-muted">Unassigned</span>
+              {% endif %}
+            </dd>
+            <dt class="col-sm-4 text-muted">Submitted</dt>
+            <dd class="col-sm-8">{{ complaint.created_at|date:"M j, Y, H:i" }}</dd>
+            <dt class="col-sm-4 text-muted">Last updated</dt>
+            <dd class="col-sm-8">{{ complaint.updated_at|date:"M j, Y, H:i" }}</dd>
+          </dl>
+
           {% if complaint.escalation_reason %}
-            <div class="alert alert-secondary py-2">
+            <div class="alert alert-secondary py-2 mt-3 mb-0">
               <div class="fw-semibold">Escalation reason</div>
               {{ complaint.escalation_reason }}
             </div>
           {% endif %}
-          <h2 class="h6 mt-3">Description</h2>
+
+          <hr class="my-4" />
+
+          <h2 class="h6 text-uppercase text-muted mb-2">Description</h2>
           <p class="mb-0">{{ complaint.description }}</p>
         </div>
 
-        <div class="bg-white shadow-sm rounded p-4 mb-4">
+        <div class="bg-white shadow-sm rounded border p-4 mb-4">
           <h2 class="h6 mb-3">Assign / reassign agent</h2>
           <form method="post" action="{% url 'complaints:admin_assign_complaint' complaint.reference %}">
             {% csrf_token %}
-            <div class="mb-2">{{ assign_form.agent.label_tag }} {{ assign_form.agent }}</div>
+            <div class="mb-3">{{ assign_form.agent.label_tag }} {{ assign_form.agent }}</div>
             <button class="btn btn-primary btn-sm" type="submit">Save assignment</button>
           </form>
         </div>
 
-        <div class="bg-white shadow-sm rounded p-4 mb-4">
+        <div class="bg-white shadow-sm rounded border p-4 mb-4">
           <h2 class="h6 mb-3">Override status</h2>
           <form method="post" action="{% url 'complaints:admin_update_status' complaint.reference %}">
             {% csrf_token %}
             <div class="mb-2">{{ admin_status_form.status.label_tag }} {{ admin_status_form.status }}</div>
-            <div class="mb-2">{{ admin_status_form.note.label_tag }} {{ admin_status_form.note }}</div>
-            <button class="btn btn-danger btn-sm" type="submit">Apply status</button>
+            <div class="mb-3">{{ admin_status_form.note.label_tag }} {{ admin_status_form.note }}</div>
+            <button class="btn btn-danger btn-sm" type="submit">Apply status override</button>
           </form>
         </div>
       </div>
 
       <div class="col-lg-5">
-        <div class="bg-white shadow-sm rounded p-4 mb-4">
-          <h2 class="h6 mb-3">Internal notes</h2>
-          {% if notes %}
-            <ul class="list-group list-group-flush">
-              {% for n in notes %}
-                <li class="list-group-item">
-                  <div class="small text-muted">{{ n.created_at }} · {{ n.author.username }}</div>
-                  <div>{{ n.body }}</div>
-                </li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <p class="text-muted mb-0">No notes yet.</p>
-          {% endif %}
+        <div class="card shadow-sm mb-4 border-danger border-start border-4">
+          <div class="card-body">
+            <h2 class="h6 mb-2">Internal notes</h2>
+            <p class="small text-muted mb-3">Includes automated assignment audit entries.</p>
+            {% if notes %}
+              <ul class="list-group list-group-flush">
+                {% for n in notes %}
+                  <li class="list-group-item px-0">
+                    <div class="small text-muted">{{ n.created_at|date:"M j, Y, H:i" }} · {{ n.author.username }}</div>
+                    <div>{{ n.body }}</div>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="text-muted mb-0 small">No notes yet.</p>
+            {% endif %}
+          </div>
         </div>
 
-        <div class="bg-white shadow-sm rounded p-4">
+        <div class="bg-white shadow-sm rounded border p-4">
           <h2 class="h6 mb-3">Status history</h2>
           {% if history %}
             <ul class="list-group list-group-flush">
               {% for h in history %}
-                <li class="list-group-item">
-                  <div class="small text-muted">{{ h.created_at }} · {{ h.changed_by.username }}</div>
+                <li class="list-group-item px-0">
+                  <div class="small text-muted">{{ h.created_at|date:"M j, Y, H:i" }} · {{ h.changed_by.username }}</div>
                   <div>
-                    {% if h.from_status %}<span class="text-muted">{{ h.from_status }}</span> →{% endif %}
-                    <strong>{{ h.to_status }}</strong>
+                    {% if h.from_status %}
+                      <span class="text-muted">{{ h.from_status|complaint_status_label }}</span>
+                      <span class="text-muted px-1">→</span>
+                    {% endif %}
+                    <strong>{{ h.to_status|complaint_status_label }}</strong>
                   </div>
-                  {% if h.note %}<div class="small mt-1">{{ h.note }}</div>{% endif %}
+                  {% if h.note %}<div class="small mt-1 text-muted">{{ h.note }}</div>{% endif %}
                 </li>
               {% endfor %}
             </ul>
           {% else %}
-            <p class="text-muted mb-0">No history.</p>
+            <p class="text-muted mb-0 small">No history.</p>
           {% endif %}
         </div>
       </div>
