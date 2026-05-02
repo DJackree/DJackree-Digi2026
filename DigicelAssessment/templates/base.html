@@ -39,20 +39,10 @@
                       <a class="nav-link" href="{% url 'accounts:customer_home' %}">Account</a>
                     </li>
                     <li class="nav-item">
-                      <span
-                        class="nav-link disabled"
-                        tabindex="-1"
-                        title="Complaints module (plan 02)"
-                        >Complaints</span
-                      >
+                      <a class="nav-link" href="{% url 'complaints:customer_complaint_list' %}">Complaints</a>
                     </li>
                     <li class="nav-item">
-                      <span
-                        class="nav-link disabled"
-                        tabindex="-1"
-                        title="Complaints module (plan 02)"
-                        >New complaint</span
-                      >
+                      <a class="nav-link" href="{% url 'complaints:customer_complaint_create' %}">New complaint</a>
                     </li>
                     <li class="nav-item">
                       <span
@@ -67,32 +57,17 @@
                       <a class="nav-link" href="{% url 'accounts:agent_home' %}">Home</a>
                     </li>
                     <li class="nav-item">
-                      <span
-                        class="nav-link disabled"
-                        tabindex="-1"
-                        title="Complaints module (plan 02)"
-                        >Assigned complaints</span
-                      >
+                      <a class="nav-link" href="{% url 'complaints:agent_complaint_queue' %}">Assigned complaints</a>
                     </li>
                   {% elif role == "admin" %}
                     <li class="nav-item">
                       <a class="nav-link" href="{% url 'accounts:admin_home' %}">Home</a>
                     </li>
                     <li class="nav-item">
-                      <span
-                        class="nav-link disabled"
-                        tabindex="-1"
-                        title="Dashboard module (plan 02)"
-                        >Dashboard</span
-                      >
+                      <a class="nav-link" href="{% url 'dashboard:admin_dashboard' %}">Dashboard</a>
                     </li>
                     <li class="nav-item">
-                      <span
-                        class="nav-link disabled"
-                        tabindex="-1"
-                        title="Complaints module (plan 02)"
-                        >Complaints</span
-                      >
+                      <a class="nav-link" href="{% url 'complaints:admin_complaint_list' %}">Complaints</a>
                     </li>
                     <li class="nav-item">
                       <a class="nav-link" href="{% url 'admin:index' %}">Django admin</a>

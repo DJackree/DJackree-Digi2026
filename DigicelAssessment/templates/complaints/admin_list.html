@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}All complaints{% endblock %}
+{% block content %}
+  <div class="container py-4">
+    <h1 class="h3 mb-3">All complaints</h1>
+    {% if complaints %}
+      <div class="table-responsive bg-white shadow-sm rounded">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Reference</th>
+              <th>Customer</th>
+              <th>Agent</th>
+              <th>Category</th>
+              <th>Status</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in complaints %}
+              <tr>
+                <td>
+                  <a href="{% url 'complaints:admin_complaint_detail' c.reference %}">{{ c.reference }}</a>
+                </td>
+                <td>{{ c.customer_account.user.username }}</td>
+                <td>{% if c.assigned_agent %}{{ c.assigned_agent.username }}{% else %}—{% endif %}</td>
+                <td>{{ c.get_category_display }}</td>
+                <td>{{ c.get_status_display }}</td>
+                <td>{{ c.created_at }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="text-muted">No complaints in the system.</p>
+    {% endif %}
+  </div>
+{% endblock %}

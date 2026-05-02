@@ -37,10 +37,20 @@ See repo root README or `core/management/commands/seed_data.py` for credential d
 
 On a **fresh** database (`seed_data` without `--if-empty`), the seed also creates **15 demo complaints** (all categories/statuses, SLA breach examples, status history, internal notes on assigned tickets), plus **2 network outages** (including an active outage in **Kingston**, matching `customer1`). If users already exist, `seed_data --if-empty` skips everything—including complaints—by design.
 
+## Complaints module (Phase 2 backend)
+
+Routes (role-protected):
+
+- Customer: `/complaints/`, `/complaints/new/`, `/complaints/<reference>/`
+- Agent: `/agent/complaints/`, `/agent/complaints/<reference>/` (+ POST endpoints for status, notes, escalation)
+- Admin: `/admin-portal/dashboard/`, `/admin-portal/complaints/`, `/admin-portal/complaints/<reference>/` (+ POST assign/status)
+
+Workflow rules live in [`complaints/services.py`](complaints/services.py). Automated tests: `python manage.py test complaints dashboard` (requires a reachable Postgres DB matching `.env`).
+
 ## Phase 3: Bootstrap UI (shared layout)
 
 - Shared Bootstrap 5 base template (`templates/base.html`): role-aware nav, Django messages as dismissible alerts, POST logout in the navbar.
 - Login (`/accounts/login/`) uses [`accounts/forms.py`](accounts/forms.py) `BootstrapAuthenticationForm` for Bootstrap field styling.
 - Landing pages: `customer/`, `agent/`, `admin-portal/` (`templates/accounts/landing_*.html`).
 
-**Quick verification:** sign in as `customer1`, `agent1`, and `admin` and confirm navbar items match each role (placeholders explain upcoming Complaints/Dashboard/Chatbot work). Visiting `/admin-portal/` while logged in as a customer must still return **403**.
+**Quick verification:** sign in as `customer1`, `agent1`, and `admin` and exercise the Complaints/Dashboard links in the navbar (`/complaints/`, `/agent/complaints/`, `/admin-portal/dashboard/`). Visiting `/admin-portal/` while logged in as a customer must still return **403**.
