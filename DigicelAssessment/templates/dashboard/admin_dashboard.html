@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Admin dashboard{% endblock %}
+{% block content %}
+  <div class="container py-4">
+    <h1 class="h3 mb-3">Complaints dashboard</h1>
+
+    <div class="row g-3 mb-4">
+      {% for status, count in metrics.by_status.items %}
+        <div class="col-md-4 col-lg-2">
+          <div class="card shadow-sm h-100">
+            <div class="card-body py-3">
+              <div class="small text-muted text-uppercase">{{ status }}</div>
+              <div class="display-6">{{ count }}</div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="row g-4">
+      <div class="col-lg-6">
+        <div class="bg-white shadow-sm rounded p-4">
+          <h2 class="h6 mb-3">By category</h2>
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th class="text-end">Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for cat, count in metrics.by_category.items %}
+                  <tr>
+                    <td>{{ cat }}</td>
+                    <td class="text-end">{{ count }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="bg-white shadow-sm rounded p-4 mb-3">
+          <h2 class="h6 mb-2">Average resolution time</h2>
+          {% if average_resolution_display %}
+            <p class="mb-0 fs-4">{{ average_resolution_display }}</p>
+          {% else %}
+            <p class="text-muted mb-0">No resolved complaints yet.</p>
+          {% endif %}
+        </div>
+
+        <div class="bg-white shadow-sm rounded p-4">
+          <h2 class="h6 mb-3">SLA breaches (&gt; 5 days, not resolved/closed)</h2>
+          {% if metrics.sla_breaches %}
+            <div class="table-responsive">
+              <table class="table table-sm mb-0">
+                <thead>
+                  <tr>
+                    <th>Reference</th>
+                    <th>Customer</th>
+                    <th>Category</th>
+                    <th>Status</th>
+                    <th>Agent</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for c in metrics.sla_breaches %}
+                    <tr>
+                      <td>
+                        <a href="{% url 'complaints:admin_complaint_detail' c.reference %}">{{ c.reference }}</a>
+                      </td>
+                      <td>{{ c.customer_account.user.username }}</td>
+                      <td>{{ c.get_category_display }}</td>
+                      <td>{{ c.get_status_display }}</td>
+                      <td>{% if c.assigned_agent %}{{ c.assigned_agent.username }}{% else %}—{% endif %}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">No SLA breaches right now.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
