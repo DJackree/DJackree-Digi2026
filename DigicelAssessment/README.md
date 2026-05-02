@@ -42,8 +42,10 @@ On a **fresh** database (`seed_data` without `--if-empty`), the seed also create
 Routes (role-protected):
 
 - Customer: `/complaints/`, `/complaints/new/`, `/complaints/<reference>/`
-- Agent: `/agent/complaints/`, `/agent/complaints/<reference>/` (+ POST endpoints for status, notes, escalation)
-- Admin: `/admin-portal/dashboard/`, `/admin-portal/complaints/`, `/admin-portal/complaints/<reference>/` (+ POST assign/status)
+- Agent: `/agent/complaints/` (optional `?status=&category=` filters), `/agent/complaints/<reference>/` (+ POST endpoints for status, notes, escalation)
+- Admin: `/admin-portal/dashboard/`, `/admin-portal/complaints/` (optional `?status=&category=&agent=&sla_breach=1`), `/admin-portal/complaints/<reference>/` (+ POST assign/status)
+
+Phase 3 templates add Bootstrap polish (badges, clearer SLA indicators), customer-safe timelines (no internal-note leakage), admin/agent filters, and landing-page shortcuts.
 
 Workflow rules live in [`complaints/services.py`](complaints/services.py). Automated tests: `python manage.py test complaints dashboard` (requires a reachable Postgres DB matching `.env`).
 

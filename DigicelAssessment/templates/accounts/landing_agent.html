@@ -7,20 +7,21 @@
     <h1 class="h3 mb-3">Agent home</h1>
     <p class="lead text-muted">Signed in as {{ request.user.username }}.</p>
 
-    <div class="card mb-4">
-      <div class="card-header">Assigned complaints queue</div>
+    <div class="card mb-4 shadow-sm border">
+      <div class="card-header fw-semibold">Assigned complaints queue</div>
       <div class="card-body">
-        <p class="mb-0 text-muted">
-          The assigned queue and workbench will appear here once the Complaints module is implemented.
+        <p class="mb-3 text-muted">
+          Work tickets assigned to you. Use filters on the queue page to focus on a category or status.
         </p>
+        <a class="btn btn-primary" href="{% url 'complaints:agent_complaint_queue' %}">Open assigned queue</a>
       </div>
     </div>
 
-    <div class="card border-secondary">
+    <div class="card shadow-sm border-secondary">
       <div class="card-body">
-        <h2 class="h6">Quick link</h2>
+        <h2 class="h6 mb-2">Tip</h2>
         <p class="small text-muted mb-0">
-          Navigation will include routes like <code>/agent/complaints/</code> in a future phase.
+          Internal notes and escalation reasons are never visible to customers—only status transitions appear on their timeline.
         </p>
       </div>
     </div>

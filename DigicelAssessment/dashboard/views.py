@@ -1,11 +1,17 @@
-"""Admin dashboard view (Phase 2 minimal UI)."""
+"""Admin dashboard view (Phase 3 UI)."""
 
 from django.shortcuts import render
+from django.utils import timezone
 
 from accounts.decorators import role_required
 from accounts.models import UserProfile
+from complaints.models import Complaint
 
 from .services import get_dashboard_metrics
+
+
+def _complaint_age_days(complaint: Complaint) -> float:
+    return (timezone.now() - complaint.created_at).total_seconds() / 86400
 
 
 @role_required(UserProfile.Role.ADMIN)
@@ -27,11 +33,28 @@ def admin_dashboard(request):
             parts.append(f"{minutes}m")
         avg_display = " ".join(parts)
 
+    status_cards = [
+        {"code": code, "label": label, "count": metrics["by_status"][code]}
+        for code, label in Complaint.Status.choices
+    ]
+    category_rows = [
+        {"code": code, "label": label, "count": metrics["by_category"][code]}
+        for code, label in Complaint.Category.choices
+    ]
+
+    breaches = list(metrics["sla_breaches"])
+    sla_breach_rows = [
+        {"complaint": c, "age_days": _complaint_age_days(c)} for c in breaches
+    ]
+
     return render(
         request,
         "dashboard/admin_dashboard.html",
         {
             "metrics": metrics,
             "average_resolution_display": avg_display,
+            "status_cards": status_cards,
+            "category_rows": category_rows,
+            "sla_breach_rows": sla_breach_rows,
         },
     )

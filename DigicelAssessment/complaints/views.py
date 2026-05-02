@@ -1,10 +1,11 @@
-"""Complaint HTTP handlers (Phase 2 backend + minimal templates)."""
+"""Complaint HTTP handlers (roles, workflows, and Bootstrap UI)."""
 
 from __future__ import annotations
 
 from datetime import timedelta
 
 from django.contrib import messages
+from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -41,6 +42,24 @@ def _sla_cutoff():
 
 def _complaint_age_days(complaint: Complaint) -> float:
     return (timezone.now() - complaint.created_at).total_seconds() / 86400
+
+
+def _customer_timeline_rows(complaint: Complaint) -> list[dict[str, object]]:
+    """Human-readable timeline for customers (no internal audit notes)."""
+
+    labels = dict(Complaint.Status.choices)
+    rows: list[dict[str, object]] = []
+    for row in complaint.status_history.order_by("created_at"):
+        from_label = labels.get(row.from_status, row.from_status or "—")
+        to_label = labels.get(row.to_status, row.to_status)
+        rows.append(
+            {
+                "from_label": from_label,
+                "to_label": to_label,
+                "at": row.created_at,
+            }
+        )
+    return rows
 
 
 @role_required(UserProfile.Role.CUSTOMER)
@@ -105,13 +124,13 @@ def customer_complaint_detail(request, reference: str):
         get_customer_complaints(request.user),
         reference=reference,
     )
-    timeline = complaint.status_history.order_by("created_at")
+    timeline_rows = _customer_timeline_rows(complaint)
     return render(
         request,
         "complaints/customer_detail.html",
         {
             "complaint": complaint,
-            "timeline": timeline,
+            "timeline_rows": timeline_rows,
         },
     )
 
@@ -119,7 +138,18 @@ def customer_complaint_detail(request, reference: str):
 @role_required(UserProfile.Role.AGENT)
 @require_http_methods(["GET", "HEAD"])
 def agent_complaint_queue(request):
+    valid_status = {s for s, _ in Complaint.Status.choices}
+    valid_category = {c for c, _ in Complaint.Category.choices}
+
     qs = get_agent_complaints(request.user).order_by("created_at")
+    filter_status = request.GET.get("status", "").strip()
+    filter_category = request.GET.get("category", "").strip()
+
+    if filter_status in valid_status:
+        qs = qs.filter(status=filter_status)
+    if filter_category in valid_category:
+        qs = qs.filter(category=filter_category)
+
     cutoff = _sla_cutoff()
     rows = []
     for c in qs:
@@ -132,7 +162,18 @@ def agent_complaint_queue(request):
                 not in (Complaint.Status.RESOLVED, Complaint.Status.CLOSED),
             }
         )
-    return render(request, "complaints/agent_queue.html", {"rows": rows})
+    return render(
+        request,
+        "complaints/agent_queue.html",
+        {
+            "rows": rows,
+            "filter_status": filter_status,
+            "filter_category": filter_category,
+            "status_choices": Complaint.Status.choices,
+            "category_choices": Complaint.Category.choices,
+            "sla_cutoff": cutoff,
+        },
+    )
 
 
 def _agent_complaint_or_404(request, reference: str) -> Complaint:
@@ -268,8 +309,55 @@ def _admin_complaint_or_404(reference: str) -> Complaint:
 @role_required(UserProfile.Role.ADMIN)
 @require_http_methods(["GET", "HEAD"])
 def admin_complaint_list(request):
+    valid_status = {s for s, _ in Complaint.Status.choices}
+    valid_category = {c for c, _ in Complaint.Category.choices}
+
     qs = get_admin_complaints().order_by("-created_at")
-    return render(request, "complaints/admin_list.html", {"complaints": qs})
+
+    filter_status = request.GET.get("status", "").strip()
+    filter_category = request.GET.get("category", "").strip()
+    filter_agent = request.GET.get("agent", "").strip()
+    filter_sla = request.GET.get("sla_breach", "").strip()
+
+    if filter_status in valid_status:
+        qs = qs.filter(status=filter_status)
+    if filter_category in valid_category:
+        qs = qs.filter(category=filter_category)
+
+    if filter_agent:
+        if filter_agent == "none":
+            qs = qs.filter(assigned_agent__isnull=True)
+        else:
+            try:
+                aid = int(filter_agent)
+            except ValueError:
+                aid = None
+            if aid is not None:
+                qs = qs.filter(assigned_agent_id=aid)
+
+    cutoff = _sla_cutoff()
+    if filter_sla == "1":
+        qs = qs.exclude(
+            status__in=[Complaint.Status.RESOLVED, Complaint.Status.CLOSED],
+        ).filter(created_at__lt=cutoff)
+
+    agents = User.objects.filter(profile__role=UserProfile.Role.AGENT).order_by("username")
+
+    return render(
+        request,
+        "complaints/admin_list.html",
+        {
+            "complaints": qs,
+            "agents": agents,
+            "filter_status": filter_status,
+            "filter_category": filter_category,
+            "filter_agent": filter_agent,
+            "filter_sla": filter_sla,
+            "status_choices": Complaint.Status.choices,
+            "category_choices": Complaint.Category.choices,
+            "sla_cutoff": cutoff,
+        },
+    )
 
 
 @role_required(UserProfile.Role.ADMIN)

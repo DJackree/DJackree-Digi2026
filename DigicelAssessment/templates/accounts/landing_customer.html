@@ -8,8 +8,8 @@
     <p class="lead text-muted">Welcome back, {{ request.user.username }}.</p>
 
     {% if account %}
-      <div class="card mb-4">
-        <div class="card-header">Account summary</div>
+      <div class="card mb-4 shadow-sm border">
+        <div class="card-header fw-semibold">Account summary</div>
         <div class="card-body">
           <dl class="row mb-0">
             <dt class="col-sm-3">Account number</dt>
@@ -29,26 +29,28 @@
 
     <div class="row g-3">
       <div class="col-md-4">
-        <div class="card h-100 border-secondary">
-          <div class="card-body">
-            <h2 class="h6">Complaints</h2>
-            <p class="small text-muted mb-0">Complaint list is available after the Complaints module is implemented.</p>
+        <div class="card h-100 shadow-sm border">
+          <div class="card-body d-flex flex-column">
+            <h2 class="h6">Complaint history</h2>
+            <p class="small text-muted flex-grow-1">View status updates for tickets you’ve submitted.</p>
+            <a class="btn btn-sm btn-primary" href="{% url 'complaints:customer_complaint_list' %}">Open complaints</a>
           </div>
         </div>
       </div>
       <div class="col-md-4">
-        <div class="card h-100 border-secondary">
-          <div class="card-body">
-            <h2 class="h6">New complaint</h2>
-            <p class="small text-muted mb-0">Submit flow will be added in the Complaints module.</p>
+        <div class="card h-100 shadow-sm border">
+          <div class="card-body d-flex flex-column">
+            <h2 class="h6">Submit complaint</h2>
+            <p class="small text-muted flex-grow-1">Create a new billing, network, device, roaming, or other issue.</p>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'complaints:customer_complaint_create' %}">New complaint</a>
           </div>
         </div>
       </div>
       <div class="col-md-4">
-        <div class="card h-100 border-secondary">
-          <div class="card-body">
+        <div class="card h-100 shadow-sm border-secondary">
+          <div class="card-body d-flex flex-column">
             <h2 class="h6">Chatbot</h2>
-            <p class="small text-muted mb-0">Account Q&amp;A chat will be added in the Chatbot module.</p>
+            <p class="small text-muted mb-0">Account Q&amp;A chat ships in the Chatbot module (plan 03).</p>
           </div>
         </div>
       </div>

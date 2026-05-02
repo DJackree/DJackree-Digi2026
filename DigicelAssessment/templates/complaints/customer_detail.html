@@ -1,36 +1,51 @@
 {% extends "base.html" %}
+{% load complaint_tags %}
 {% block title %}Complaint {{ complaint.reference }}{% endblock %}
 {% block content %}
   <div class="container py-4">
     <div class="mb-3">
-      <a href="{% url 'complaints:customer_complaint_list' %}">&larr; Back to list</a>
+      <a class="text-decoration-none" href="{% url 'complaints:customer_complaint_list' %}">&larr; Back to my complaints</a>
     </div>
-    <div class="bg-white shadow-sm rounded p-4 mb-4">
-      <h1 class="h4">{{ complaint.reference }}</h1>
-      <p class="text-muted mb-2">
-        Category: <strong>{{ complaint.get_category_display }}</strong>
-        · Status: <strong>{{ complaint.get_status_display }}</strong>
-      </p>
-      <p class="mb-1"><strong>Submitted</strong> {{ complaint.created_at }}</p>
-      <p class="mb-3"><strong>Last updated</strong> {{ complaint.updated_at }}</p>
-      <h2 class="h6">Description</h2>
+
+    <div class="bg-white shadow-sm rounded border p-4 mb-4">
+      <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+        <h1 class="h4 mb-0">{{ complaint.reference }}</h1>
+        {% complaint_status_badge_class complaint.status as sb %}
+        <span class="badge text-bg-{{ sb }}">{{ complaint.get_status_display }}</span>
+        {% complaint_category_badge_class complaint.category as cb %}
+        <span class="badge text-bg-{{ cb }}">{{ complaint.get_category_display }}</span>
+      </div>
+
+      <dl class="row mb-0 small">
+        <dt class="col-sm-3 text-muted">Submitted</dt>
+        <dd class="col-sm-9">{{ complaint.created_at|date:"M j, Y, H:i" }}</dd>
+        <dt class="col-sm-3 text-muted">Last updated</dt>
+        <dd class="col-sm-9">{{ complaint.updated_at|date:"M j, Y, H:i" }}</dd>
+      </dl>
+
+      <hr class="my-4" />
+
+      <h2 class="h6 text-uppercase text-muted mb-2">Description</h2>
       <p class="mb-0">{{ complaint.description }}</p>
     </div>
 
-    <div class="bg-white shadow-sm rounded p-4">
+    <div class="bg-white shadow-sm rounded border p-4">
       <h2 class="h6 mb-3">Status timeline</h2>
-      {% if timeline %}
+      <p class="small text-muted mb-3">
+        You’ll see high-level status changes here. Internal agent notes are never shown on this page.
+      </p>
+      {% if timeline_rows %}
         <ul class="list-group list-group-flush">
-          {% for row in timeline %}
-            <li class="list-group-item d-flex justify-content-between gap-3">
+          {% for row in timeline_rows %}
+            <li class="list-group-item d-flex justify-content-between gap-3 align-items-start">
               <div>
-                {% if row.from_status %}
-                  <span class="text-muted">{{ row.from_status }}</span>
-                  →
+                {% if row.from_label and row.from_label != "—" %}
+                  <span class="text-muted">{{ row.from_label }}</span>
+                  <span class="text-muted px-1">→</span>
                 {% endif %}
-                <strong>{{ row.to_status }}</strong>
+                <strong>{{ row.to_label }}</strong>
               </div>
-              <span class="text-muted small text-nowrap">{{ row.created_at }}</span>
+              <span class="text-muted small text-nowrap">{{ row.at|date:"M j, Y, H:i" }}</span>
             </li>
           {% endfor %}
         </ul>

@@ -1,39 +1,117 @@
 {% extends "base.html" %}
+{% load complaint_tags %}
 {% block title %}All complaints{% endblock %}
 {% block content %}
   <div class="container py-4">
-    <h1 class="h3 mb-3">All complaints</h1>
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-4">
+      <div>
+        <h1 class="h3 mb-1">All complaints</h1>
+        <p class="text-muted mb-0 small">Operational view across customers and agents.</p>
+      </div>
+      <a class="btn btn-outline-primary btn-sm" href="{% url 'dashboard:admin_dashboard' %}">Open dashboard</a>
+    </div>
+
+    <form method="get" class="card mb-4 shadow-sm border">
+      <div class="card-body row g-3 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label small text-muted mb-1" for="adm-filter-status">Status</label>
+          <select class="form-select" id="adm-filter-status" name="status">
+            <option value="">All</option>
+            {% for code, label in status_choices %}
+              <option value="{{ code }}" {% if filter_status == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-muted mb-1" for="adm-filter-category">Category</label>
+          <select class="form-select" id="adm-filter-category" name="category">
+            <option value="">All</option>
+            {% for code, label in category_choices %}
+              <option value="{{ code }}" {% if filter_category == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-muted mb-1" for="adm-filter-agent">Assigned agent</label>
+          <select class="form-select" id="adm-filter-agent" name="agent">
+            <option value="">All</option>
+            <option value="none" {% if filter_agent == "none" %}selected{% endif %}>Unassigned</option>
+            {% for a in agents %}
+              <option value="{{ a.id }}" {% if filter_agent == a.id|stringformat:"d" %}selected{% endif %}>{{ a.username }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <div class="form-check mb-2">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              value="1"
+              id="sla-only"
+              name="sla_breach"
+              {% if filter_sla == "1" %}checked{% endif %}
+            />
+            <label class="form-check-label" for="sla-only">SLA breaches only</label>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary flex-grow-1">Apply</button>
+            <a class="btn btn-outline-secondary" href="{% url 'complaints:admin_complaint_list' %}">Reset</a>
+          </div>
+        </div>
+      </div>
+    </form>
+
     {% if complaints %}
-      <div class="table-responsive bg-white shadow-sm rounded">
-        <table class="table table-hover mb-0">
+      <div class="table-responsive bg-white shadow-sm rounded border">
+        <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
             <tr>
-              <th>Reference</th>
-              <th>Customer</th>
-              <th>Agent</th>
-              <th>Category</th>
-              <th>Status</th>
-              <th>Created</th>
+              <th scope="col">Reference</th>
+              <th scope="col">Customer</th>
+              <th scope="col">Agent</th>
+              <th scope="col">Category</th>
+              <th scope="col">Status</th>
+              <th scope="col">Created</th>
+              <th scope="col">SLA</th>
             </tr>
           </thead>
           <tbody>
             {% for c in complaints %}
-              <tr>
+              <tr class="{% if c.created_at < sla_cutoff and c.status != 'resolved' and c.status != 'closed' %}table-warning{% endif %}">
                 <td>
-                  <a href="{% url 'complaints:admin_complaint_detail' c.reference %}">{{ c.reference }}</a>
+                  <a class="fw-semibold text-decoration-none" href="{% url 'complaints:admin_complaint_detail' c.reference %}">{{ c.reference }}</a>
                 </td>
-                <td>{{ c.customer_account.user.username }}</td>
-                <td>{% if c.assigned_agent %}{{ c.assigned_agent.username }}{% else %}—{% endif %}</td>
-                <td>{{ c.get_category_display }}</td>
-                <td>{{ c.get_status_display }}</td>
-                <td>{{ c.created_at }}</td>
+                <td>
+                  <div class="fw-semibold">{{ c.customer_account.user.username }}</div>
+                  <div class="small text-muted">{{ c.customer_account.account_number }}</div>
+                </td>
+                <td>{% if c.assigned_agent %}<span class="badge text-bg-light border">{{ c.assigned_agent.username }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                <td>
+                  {% complaint_category_badge_class c.category as cb %}
+                  <span class="badge text-bg-{{ cb }}">{{ c.get_category_display }}</span>
+                </td>
+                <td>
+                  {% complaint_status_badge_class c.status as sb %}
+                  <span class="badge text-bg-{{ sb }}">{{ c.get_status_display }}</span>
+                </td>
+                <td><span class="small text-muted">{{ c.created_at|date:"M j, Y, H:i" }}</span></td>
+                <td>
+                  {% if c.created_at < sla_cutoff and c.status != "resolved" and c.status != "closed" %}
+                    <span class="badge text-bg-danger">Breach</span>
+                  {% else %}
+                    <span class="text-muted small">OK</span>
+                  {% endif %}
+                </td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
     {% else %}
-      <p class="text-muted">No complaints in the system.</p>
+      <div class="bg-white shadow-sm rounded border p-5 text-center">
+        <h2 class="h5 mb-2">No complaints match</h2>
+        <p class="text-muted mb-0">Adjust filters or seed demo data.</p>
+      </div>
     {% endif %}
   </div>
 {% endblock %}

@@ -1,37 +1,82 @@
 {% extends "base.html" %}
+{% load complaint_tags %}
 {% block title %}Assigned complaints{% endblock %}
 {% block content %}
   <div class="container py-4">
-    <h1 class="h3 mb-3">Assigned complaints</h1>
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-4">
+      <div>
+        <h1 class="h3 mb-1">Assigned complaints</h1>
+        <p class="text-muted mb-0 small">Oldest tickets first. SLA warnings highlight items older than 5 days and not resolved.</p>
+      </div>
+    </div>
+
+    <form method="get" class="card mb-4 shadow-sm border">
+      <div class="card-body row g-3 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label small text-muted mb-1" for="filter-status">Status</label>
+          <select class="form-select" id="filter-status" name="status">
+            <option value="">All statuses</option>
+            {% for code, label in status_choices %}
+              <option value="{{ code }}" {% if filter_status == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small text-muted mb-1" for="filter-category">Category</label>
+          <select class="form-select" id="filter-category" name="category">
+            <option value="">All categories</option>
+            {% for code, label in category_choices %}
+              <option value="{{ code }}" {% if filter_category == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4 d-flex gap-2">
+          <button type="submit" class="btn btn-primary flex-grow-1">Apply filters</button>
+          <a class="btn btn-outline-secondary" href="{% url 'complaints:agent_complaint_queue' %}">Reset</a>
+        </div>
+      </div>
+    </form>
+
     {% if rows %}
-      <div class="table-responsive bg-white shadow-sm rounded">
-        <table class="table table-hover mb-0">
+      <div class="table-responsive bg-white shadow-sm rounded border">
+        <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
             <tr>
-              <th>Reference</th>
-              <th>Customer</th>
-              <th>Category</th>
-              <th>Status</th>
-              <th>Age (days)</th>
-              <th>SLA</th>
+              <th scope="col">Reference</th>
+              <th scope="col">Customer</th>
+              <th scope="col">Category</th>
+              <th scope="col">Status</th>
+              <th scope="col" class="text-end">Age (days)</th>
+              <th scope="col">SLA</th>
             </tr>
           </thead>
           <tbody>
             {% for row in rows %}
               {% with c=row.complaint %}
-                <tr>
+                <tr class="{% if row.sla_warning %}table-warning{% endif %}">
                   <td>
-                    <a href="{% url 'complaints:agent_complaint_detail' c.reference %}">{{ c.reference }}</a>
+                    <a class="fw-semibold text-decoration-none" href="{% url 'complaints:agent_complaint_detail' c.reference %}">
+                      {{ c.reference }}
+                    </a>
                   </td>
-                  <td>{{ c.customer_account.user.username }}</td>
-                  <td>{{ c.get_category_display }}</td>
-                  <td>{{ c.get_status_display }}</td>
-                  <td>{{ row.age_days|floatformat:1 }}</td>
+                  <td>
+                    <div class="fw-semibold">{{ c.customer_account.user.username }}</div>
+                    <div class="small text-muted">{{ c.customer_account.account_number }}</div>
+                  </td>
+                  <td>
+                    {% complaint_category_badge_class c.category as cb %}
+                    <span class="badge text-bg-{{ cb }}">{{ c.get_category_display }}</span>
+                  </td>
+                  <td>
+                    {% complaint_status_badge_class c.status as sb %}
+                    <span class="badge text-bg-{{ sb }}">{{ c.get_status_display }}</span>
+                  </td>
+                  <td class="text-end">{{ row.age_days|floatformat:1 }}</td>
                   <td>
                     {% if row.sla_warning %}
-                      <span class="badge text-bg-warning">Breach risk</span>
+                      <span class="badge text-bg-danger">SLA breach</span>
                     {% else %}
-                      <span class="text-muted">—</span>
+                      <span class="text-muted small">Within window</span>
                     {% endif %}
                   </td>
                 </tr>
@@ -41,7 +86,10 @@
         </table>
       </div>
     {% else %}
-      <p class="text-muted">No complaints are assigned to you.</p>
+      <div class="bg-white shadow-sm rounded border p-5 text-center">
+        <h2 class="h5 mb-2">No tickets match</h2>
+        <p class="text-muted mb-0">Adjust filters or wait for new assignments from an administrator.</p>
+      </div>
     {% endif %}
   </div>
 {% endblock %}

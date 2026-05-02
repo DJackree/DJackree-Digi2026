@@ -9,26 +9,28 @@
 
     <div class="row g-3">
       <div class="col-md-4">
-        <div class="card h-100">
-          <div class="card-body">
+        <div class="card h-100 shadow-sm border">
+          <div class="card-body d-flex flex-column">
             <h2 class="h6">Complaint dashboard</h2>
-            <p class="small text-muted">Metrics dashboard will ship with the Complaints module.</p>
+            <p class="small text-muted flex-grow-1">Counts, categories, average resolution, and SLA breaches.</p>
+            <a class="btn btn-sm btn-primary" href="{% url 'dashboard:admin_dashboard' %}">Open dashboard</a>
           </div>
         </div>
       </div>
       <div class="col-md-4">
-        <div class="card h-100">
-          <div class="card-body">
+        <div class="card h-100 shadow-sm border">
+          <div class="card-body d-flex flex-column">
             <h2 class="h6">All complaints</h2>
-            <p class="small text-muted">Admin complaint management will ship with the Complaints module.</p>
+            <p class="small text-muted flex-grow-1">Search, filter, assign agents, and audit overrides.</p>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'complaints:admin_complaint_list' %}">Open complaints</a>
           </div>
         </div>
       </div>
       <div class="col-md-4">
-        <div class="card h-100 border-primary">
-          <div class="card-body">
+        <div class="card h-100 shadow-sm border-primary">
+          <div class="card-body d-flex flex-column">
             <h2 class="h6">Django admin</h2>
-            <p class="small">Manage models and seeded data.</p>
+            <p class="small flex-grow-1">Manage models and seeded data.</p>
             <a class="btn btn-sm btn-outline-primary" href="{% url 'admin:index' %}">Open Django admin</a>
           </div>
         </div>
