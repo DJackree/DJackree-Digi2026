@@ -12,6 +12,7 @@
   var textarea = document.getElementById("chatMessage");
   var sendBtn = document.getElementById("sendBtn");
   var newChatBtn = document.getElementById("newChatBtn");
+  var sessionSelect = document.getElementById("chatSessionSelect");
   var sessionInput = document.getElementById("chatSessionId");
   var ariaStatus = document.getElementById("chatAriaStatus");
   var statusLine = document.getElementById("chatStatusLine");
@@ -54,6 +55,7 @@
     if (sendBtn) sendBtn.disabled = busy;
     if (textarea) textarea.disabled = busy;
     if (newChatBtn) newChatBtn.disabled = busy;
+    if (sessionSelect) sessionSelect.disabled = busy;
     var suggests = root.querySelectorAll(".chat-suggestion");
     suggests.forEach(function (b) {
       b.disabled = busy;
@@ -284,6 +286,18 @@
   if (newChatBtn) {
     newChatBtn.addEventListener("click", function () {
       handleNewChat();
+    });
+  }
+
+  if (sessionSelect) {
+    sessionSelect.addEventListener("change", function () {
+      if (busy) return;
+      var v = sessionSelect.value;
+      if (!v) return;
+      var base = chatHomeUrl.split("#")[0];
+      var join = base.indexOf("?") >= 0 ? "&" : "?";
+      window.location.href =
+        base + join + "session=" + encodeURIComponent(String(v));
     });
   }
 

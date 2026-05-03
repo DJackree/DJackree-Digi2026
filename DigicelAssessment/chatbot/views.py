@@ -185,12 +185,16 @@ def chat_home(request):
 
     session = _resolve_customer_chat_session(request)
     chat_messages = list(session.messages.order_by("created_at"))
+    chat_sessions = list(
+        ChatSession.objects.filter(user=request.user).order_by("-updated_at", "-pk"),
+    )
     return render(
         request,
         "chatbot/chat.html",
         {
             "no_account": False,
             "session": session,
+            "chat_sessions": chat_sessions,
             "chat_messages": chat_messages,
             "max_chars": getattr(settings, "CHATBOT_MESSAGE_MAX_LENGTH", 1000),
             "suggested_questions": CHATBOT_SUGGESTED_QUESTIONS,

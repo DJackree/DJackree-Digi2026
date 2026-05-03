@@ -47,9 +47,34 @@
             <div class="card shadow-sm border-0 h-100 d-flex flex-column">
               <div class="card-header bg-white py-3 border-bottom">
                 <div class="d-flex justify-content-between flex-wrap gap-2 align-items-center">
-                  <div>
-                    <div class="small text-muted mb-0">Conversation</div>
-                    <strong class="text-body">Session {{ session.pk }}</strong>
+                  <div class="d-flex flex-wrap align-items-center gap-2">
+                    <div>
+                      <div class="small text-muted mb-0">Conversation</div>
+                      <strong class="text-body">Session {{ session.pk }}</strong>
+                    </div>
+                    {% if chat_sessions %}
+                      <div class="d-flex align-items-center gap-2 ms-lg-2">
+                        <label for="chatSessionSelect" class="form-label small text-muted mb-0 text-nowrap">
+                          Switch session
+                        </label>
+                        <select
+                          id="chatSessionSelect"
+                          class="form-select form-select-sm"
+                          style="min-width: 11rem; max-width: 18rem"
+                          aria-label="Switch to another chat session"
+                        >
+                          {% for s in chat_sessions %}
+                            <option value="{{ s.pk }}" {% if s.pk == session.pk %}selected{% endif %}>
+                              {% if s.title %}
+                                {{ s.title|truncatechars:28 }} · #{{ s.pk }}
+                              {% else %}
+                                #{{ s.pk }} · {{ s.updated_at|date:"M j, Y" }}
+                              {% endif %}
+                            </option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                    {% endif %}
                   </div>
                   <span id="chatStatusLine" class="small">&nbsp;</span>
                 </div>
