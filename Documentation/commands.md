@@ -1,11 +1,14 @@
-# Commands Reference
+# Commands reference
 
-Commands for the Telecom Customer Portal assessment repo. The Django app lives in [`DigicelAssessment/`](../DigicelAssessment/); Docker Compose is run from the **repository root**.
+Commands for the Telecom Customer Portal. The Django project and **Docker Compose file** live in [`DigicelAssessment/`](../DigicelAssessment/) (same directory as `manage.py`).
+
+Quick start: root [`README.md`](../README.md) (`.env`, `docker compose up`).
 
 ## Prerequisites
 
-- Python 3.12+ (recommended)
-- Docker / Docker Compose (for PostgreSQL in a container)
+- **Docker** and **Docker Compose** (recommended way to run the full stack)
+- **Python 3.12+** (optional, for running Django on the host against Compose Postgres)
+- **PostgreSQL** available (via Docker as below)
 
 ## One-time environment file
 
@@ -15,33 +18,57 @@ From the **repository root**:
 cp DigicelAssessment/.env.example DigicelAssessment/.env
 ```
 
-Edit `DigicelAssessment/.env` and set `POSTGRES_PASSWORD` (and any other values) for local development. Do not commit `.env`.
+Edit `DigicelAssessment/.env`. Set `POSTGRES_*`, `DJANGO_SECRET_KEY`, and `GROQ_API_KEY` for chatbot testing. **Do not commit** `.env`.
 
-## Database (PostgreSQL via Docker)
+---
 
-Start the database in the background:
+## Full stack with Docker (primary)
+
+All `docker compose` commands are run from **`DigicelAssessment/`** (where `docker-compose.yml` is).
+
+**First run** (build images, migrate, seed if empty, start server):
 
 ```bash
-docker compose up -d db
+cd DigicelAssessment
+docker compose up --build
 ```
 
-Stop containers (from repo root):
+**Later runs:**
 
 ```bash
+cd DigicelAssessment
+docker compose up
+```
+
+- App URL: **http://localhost:8000**
+- The `web` service sets `POSTGRES_HOST=db` automatically; keep `POSTGRES_HOST=db` in `.env` for consistency, or rely on Compose overrides when using `web`.
+
+**Stop:**
+
+```bash
+cd DigicelAssessment
 docker compose down
 ```
 
-To reset the database data volume (destructive; use when you need a clean Postgres):
+**Reset database volume** (destructive — removes Postgres data; next `up` re-migrates and re-seeds if empty):
 
 ```bash
+cd DigicelAssessment
 docker compose down -v
 ```
 
-Then start `db` again and re-run migrations and seed.
+**Database only** (run Django on your machine; use `POSTGRES_HOST=localhost` in `.env`):
 
-## Python virtual environment and dependencies
+```bash
+cd DigicelAssessment
+docker compose up -d db
+```
 
-From **`DigicelAssessment/`** (where `manage.py` and `requirements.txt` are):
+---
+
+## Python virtual environment (host Django)
+
+From **`DigicelAssessment/`** (where `manage.py` and `requirements.txt` are).
 
 **Windows (PowerShell or cmd):**
 
@@ -53,9 +80,7 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-**Git Bash on Windows (recommended sequence):**
-
-Run each line after the previous one succeeds:
+**Git Bash on Windows:**
 
 ```bash
 cd DigicelAssessment
@@ -65,131 +90,121 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-**How to tell it worked:** After `source .venv/Scripts/activate`, `pip` should install into the venv, not your user profile. You should see paths containing `.venv\lib\site-packages` (or `.venv/lib/...`) and **no** line like `Defaulting to user installation because normal site-packages is not writeable`.
-
-Optional check (Git Bash):
-
-```bash
-which python
-which pip
-```
-
-Paths should point under `.venv/Scripts/` or `.venv\Scripts\`.
+Use `POSTGRES_HOST=localhost` in `.env` when Postgres is exposed from Docker on port 5432.
 
 ## Django: apply migrations
 
-With the venv activated and Postgres running (`POSTGRES_HOST=localhost` in `.env` when Django runs on the host):
+With venv activated and Postgres reachable:
 
 ```bash
+cd DigicelAssessment
 python manage.py migrate
 ```
 
-## Django: seed foundation data
+## Django: seed data
 
-Idempotent: skips if users already exist when `--if-empty` is passed:
+Idempotent when using `--if-empty` (skips if any user exists):
 
 ```bash
+cd DigicelAssessment
 python manage.py seed_data --if-empty
 ```
 
-Run twice to confirm the second run skips:
+## Django: development server (host)
 
 ```bash
-python manage.py seed_data --if-empty
-python manage.py seed_data --if-empty
-```
-
-## Django: development server
-
-```bash
+cd DigicelAssessment
 python manage.py runserver
 ```
 
-Default URL: `http://127.0.0.1:8000/` — admin at `/admin/` (after seeding, log in with the seeded admin user from the project README).
+- App: **http://127.0.0.1:8000/**
+- Admin: **http://127.0.0.1:8000/admin/**
 
-## Django: automated tests (`chatbot` app)
+Seeded users: root [`README.md`](../README.md).
 
-Runs the **PostgreSQL-backed** Django test suite for the **chatbot** app (session/message persistence, intent detection, customer-only API handling, mocked Groq paths, and related regression checks).
+## Django: automated tests
 
-### What happens when you run this
+The suite uses **PostgreSQL** (same family as production). With **`db`** running and **`POSTGRES_HOST=localhost`** in `.env` when tests run on the host:
 
-1. Django connects to Postgres using **`DigicelAssessment/.env`** (same connection settings as `migrate`).
-2. It creates an **empty, disposable database** whose name is your configured `POSTGRES_DB` with a **`test_` prefix** (for example **`test_telecom_portal`** when `POSTGRES_DB=telecom_portal`).
-3. It applies **all migrations** to that test database.
-4. It runs the tests defined under **`DigicelAssessment/chatbot/tests.py`** and prints pass/fail output.
+```bash
+cd DigicelAssessment
+python manage.py test -v 2
+```
 
-Groq credentials are **not required** for the included tests—the suite **patches** `ask_groq` where it needs deterministic behavior. Postgres **must** be running and reachable (`connection timeout` / `OperationalError` during “Creating test database…” means Postgres is stopped or **`POSTGRES_HOST` / credentials / port** do not match your setup).
+Focused runs (apps that currently ship tests):
 
-### When to run it
+```bash
+python manage.py test accounts customers complaints dashboard chatbot -v 2
+```
 
-Before or while changing **`chatbot/`** routes, intents, contexts, prompts, Groq integration, or customer permissions.
-
-### Command
-
-From **`DigicelAssessment/`** with the virtual environment activated and Postgres running (from repo root: `docker compose up -d db`). When Django runs **on your machine** outside the Compose **`web`** service, **`POSTGRES_HOST=localhost`** should be set in `.env`:
+Chatbot-only (Groq is **mocked** where needed; no API key required for tests):
 
 ```bash
 python manage.py test chatbot -v 2
 ```
 
-Optional: reuse an existing local test DB for faster repeats (drops less work between runs):
+Optional faster repeat (reuses test DB):
 
 ```bash
-python manage.py test chatbot -v 2 --keepdb
+python manage.py test -v 2 --keepdb
 ```
 
-Run chatbot tests together with other modules’ suites:
+If you see **connection timeout / OperationalError** while creating the test database, ensure Postgres is up and `POSTGRES_HOST`, port, and credentials match (`db` vs `localhost`).
+
+## Django: system check (optional)
 
 ```bash
-python manage.py test complaints dashboard chatbot -v 2
-```
-
-## Django: checks (optional)
-
-```bash
+cd DigicelAssessment
 python manage.py check
 ```
 
-## Typical full flow (fresh clone)
+---
 
-1. `cp DigicelAssessment/.env.example DigicelAssessment/.env` — set password and variables.
-2. `docker compose up -d db` — from repo root.
-3. `cd DigicelAssessment` — `python -m venv .venv`, activate (`source .venv/Scripts/activate` in Git Bash), `python -m pip install --upgrade pip`, `pip install -r requirements.txt`.
+## Typical flows
+
+### Fresh clone, Docker only
+
+1. `cp DigicelAssessment/.env.example DigicelAssessment/.env` and edit values (include `GROQ_API_KEY` to exercise the chatbot).
+2. `cd DigicelAssessment && docker compose up --build`
+3. Open http://localhost:8000 and sign in with seeded accounts (see root README).
+
+### Fresh clone, Django on host + Compose DB
+
+1. Copy and edit `.env`; set **`POSTGRES_HOST=localhost`**.
+2. `cd DigicelAssessment && docker compose up -d db`
+3. Create venv, `pip install -r requirements.txt`
 4. `python manage.py migrate`
 5. `python manage.py seed_data --if-empty`
 6. `python manage.py runserver`
 
+---
+
 ## Troubleshooting
 
-### Git Bash: `bash: .venvScriptsactivate: command not found`
+### `docker compose` cannot find compose file
 
-Do **not** chain activation with Windows cmd syntax on Git Bash:
+Run Compose from **`DigicelAssessment/`**, not the repository root (unless you add a wrapper compose file at root).
 
-```bash
-# Wrong in Git Bash — backslashes are not a path separator here
-.venv\Scripts\activate
-```
+### Git Bash: `.venvScriptsactivate: command not found`
 
-Use **`source`** and **forward slashes** (run each step separately, or use `source` in the chain):
+Use:
 
 ```bash
-python -m venv .venv
 source .venv/Scripts/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
 ```
 
-Or one line:
+not `\.venv\Scripts\activate`.
 
-```bash
-python -m venv .venv && source .venv/Scripts/activate && python -m pip install --upgrade pip && pip install -r requirements.txt
-```
+### Postgres password / host mismatch
 
-### `docker compose` must be run from repo root
+- **Inside `web` container**: host must be **`db`** (Compose service name); the compose file overrides `POSTGRES_HOST` for `web`.
+- **Django on host**: use **`localhost`** and exposed port `5432`.
 
-If you are inside `DigicelAssessment/DigicelAssessment/`, `cd` up two levels (or open a shell at the repo root) so Compose finds `docker-compose.yml`.
+### Seed did not create complaints
+
+`seed_data --if-empty` skips if **any** user exists. Use a fresh DB (`docker compose down -v`) or a new database before re-seeding.
 
 ## Notes
 
-- `docker compose` reads Postgres settings from `DigicelAssessment/.env` via the `db` service `env_file` in the root [`docker-compose.yml`](../docker-compose.yml).
-- Django loads the same `DigicelAssessment/.env` via `python-dotenv` in settings when you run commands from the app directory.
+- Compose reads **`DigicelAssessment/.env`** for the `web` service `env_file`.
+- Django loads the same file via `python-dotenv` in `config/settings.py` when you run `manage.py` from `DigicelAssessment/`.
