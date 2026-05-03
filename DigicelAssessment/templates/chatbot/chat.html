@@ -1,183 +1,164 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Chat assistant · Telecom Portal{% endblock %}
 
-{% block content %}
-  <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-      <div>
-        <h1 class="h3 mb-1">Assistant</h1>
-        <p class="text-muted small mb-0">
-          Ask grounded questions about your account. Phase 3 will polish the transcript UI (fetch/streaming polish).
-        </p>
-      </div>
-      {% if not no_account %}
-        <div class="d-flex gap-2">
-          <button type="button" class="btn btn-outline-secondary btn-sm" id="newChatBtn">New chat</button>
-        </div>
-      {% endif %}
-    </div>
+{% block extra_css %}
+  <style>
+    .chat-transcript-viewport {
+      max-height: 440px;
+    }
+  </style>
+{% endblock %}
 
+{% block content %}
+  <div class="container-fluid container-lg py-4">
     {% if no_account %}
       <div class="alert alert-warning shadow-sm border-0">
-        No customer account is linked to your user, so chat is unavailable right now.
+        <div class="fw-semibold mb-1">Chat unavailable</div>
+        No customer account is linked to your user, so guided answers cannot be loaded.
       </div>
     {% else %}
-      <input type="hidden" name="session_id_field" id="chatSessionId" value="{{ session.pk }}" />
-      <div class="card shadow-sm mb-3">
-        <div class="card-body" style="min-height: 220px">
-          <div id="chatStatusLine" class="small text-muted mb-2">&nbsp;</div>
-          {% if messages %}
-            <div id="chatTranscript">
-              {% for m in messages %}
-                <div class="border-bottom py-2 {% if m.role == 'assistant' %}ps-3 bg-white{% endif %}">
-                  {% if m.role == "user" %}
-                    <strong class="text-secondary">You</strong>
-                  {% elif m.role == "assistant" %}
-                    <strong class="text-primary">Assistant</strong>
-                  {% endif %}
-                  <div>{{ m.content|escape|linebreaksbr }}</div>
-                  {% if m.intent %}<small class="text-muted">intent: {{ m.intent }}</small>{% endif %}
+      <div
+        id="chatAppRoot"
+        class="chat-app-phase3"
+        data-post-message-url="{% url 'chatbot:post_message' %}"
+        data-new-session-url="{% url 'chatbot:new_session' %}"
+        data-chat-home-url="{% url 'chatbot:chat_home' %}"
+      >
+        <div class="d-flex justify-content-between flex-wrap gap-2 align-items-start mb-3">
+          <div>
+            <h1 class="h3 mb-1">Assistant</h1>
+            <p class="text-muted small mb-0">
+              Answers are grounded only in your onboarded account facts. Anything outside that scope receives a polite decline.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="btn btn-outline-secondary btn-sm"
+            id="newChatBtn"
+          >
+            New chat
+          </button>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-lg-8">
+            <div class="card shadow-sm border-0 h-100 d-flex flex-column">
+              <div class="card-header bg-white py-3 border-bottom">
+                <div class="d-flex justify-content-between flex-wrap gap-2 align-items-center">
+                  <div>
+                    <div class="small text-muted mb-0">Conversation</div>
+                    <strong class="text-body">Session {{ session.pk }}</strong>
+                  </div>
+                  <span id="chatStatusLine" class="small">&nbsp;</span>
                 </div>
-              {% endfor %}
+                <div id="chatAriaStatus" class="visually-hidden" aria-live="polite"></div>
+              </div>
+
+              <div
+                id="chatTranscriptViewport"
+                class="chat-transcript-viewport bg-light border-bottom overflow-auto flex-grow-1"
+              >
+                <div id="chatTranscript" class="p-3 d-flex flex-column">
+                  {% if chat_messages %}
+                    {% for m in chat_messages %}
+                      {% if m.role == "user" %}
+                        <div class="d-flex justify-content-end mb-3">
+                          <div
+                            class="rounded-4 px-3 py-2 shadow-sm bg-primary text-white"
+                            style="max-width: 85%"
+                          >
+                            <div class="small fw-semibold mb-1 opacity-75">You</div>
+                            <div class="lh-sm">{{ m.content|escape|linebreaksbr }}</div>
+                          </div>
+                        </div>
+                      {% else %}
+                        <div class="d-flex justify-content-start mb-3">
+                          <div
+                            class="rounded-4 px-3 py-2 shadow-sm bg-white border lh-sm text-dark"
+                            style="max-width: 85%"
+                          >
+                            <div class="small fw-semibold text-primary mb-1">Assistant</div>
+                            {{ m.content|escape|linebreaksbr }}
+                          </div>
+                        </div>
+                      {% endif %}
+                    {% endfor %}
+                  {% else %}
+                    <div id="chatEmptyState" class="text-center text-muted py-5 px-3 mx-auto mt-4">
+                      <div class="display-6 text-secondary fw-light mb-2">Hello</div>
+                      <div class="fw-semibold mb-2">Say hello — or tap a starter question.</div>
+                      <p class="small mb-0 text-muted px-md-6">
+                        Your transcript stays linked to session <strong>#{{ session.pk }}</strong>; refresh anytime to revisit the same dialogue.
+                      </p>
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+
+              <div class="card-body border-top mt-auto pt-4">
+                <form id="chatComposerForm" onsubmit="return false;">
+                  {% csrf_token %}
+                  <input type="hidden" id="chatSessionId" value="{{ session.pk }}" />
+
+                  <label for="chatMessage" class="form-label fw-semibold">Your message</label>
+                  <textarea
+                    id="chatMessage"
+                    name="chat_message_body"
+                    class="form-control"
+                    rows="3"
+                    maxlength="{{ max_chars }}"
+                    placeholder="Ask about your account, billing, outages, complaints…"
+                  ></textarea>
+                  <div class="d-flex flex-wrap gap-3 justify-content-between align-items-start mt-2">
+                    <div class="small text-muted">{{ max_chars }} characters max · press Enter to send, Shift+Enter for new line.</div>
+                    <button type="button" id="sendBtn" class="btn btn-primary px-4">Send</button>
+                  </div>
+                </form>
+              </div>
+              <noscript><p class="text-danger px-4 pb-4">JavaScript must be enabled to reply in this assistant.</p></noscript>
             </div>
-          {% else %}
-            <div id="chatTranscript"><p class="text-muted mb-0">Say hello to begin your conversation.</p></div>
-          {% endif %}
+          </div>
+
+          <div class="col-lg-4">
+            <div class="card border-0 shadow-sm mb-4">
+              <div class="card-body">
+                <h2 class="h6 text-uppercase text-muted fw-semibold">Starter questions</h2>
+                <p class="small text-muted mb-3">
+                  Each button submits the grounded question instantly so you don’t need to paste text.
+                </p>
+                <div class="d-grid gap-2">
+                  {% for q in suggested_questions %}
+                    <button
+                      type="button"
+                      class="btn btn-outline-primary btn-sm chat-suggestion text-start"
+                      data-question="{{ q|escape }}"
+                    >
+                      {{ q }}
+                    </button>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+
+            <div class="alert alert-secondary border-0 small mb-0" role="status">
+              <div class="fw-semibold mb-1">Safety & grounding</div>
+              <ul class="mb-0 ps-3">
+                <li>Assistant cannot guess details about other subscribers.</li>
+                <li>For unsupported topics you’ll receive a clear limitation message.</li>
+                <li>Customer-only access enforced on the backend.</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
-
-      <form id="chatForm" class="card shadow-sm border-0" onsubmit="return false;">
-        {% csrf_token %}
-        <div class="card-body">
-          <label for="chatMessage" class="form-label fw-semibold">Your message</label>
-          <textarea
-            id="chatMessage"
-            class="form-control"
-            maxlength="{{ max_chars }}"
-            rows="3"
-            placeholder="Example: What plan am I currently on?"
-            required
-          ></textarea>
-          <div class="small text-muted mt-1">{{ max_chars }} characters max · JSON POST to `/chatbot/messages/`.</div>
-        </div>
-        <div class="card-footer d-flex justify-content-end gap-2">
-          <button type="button" class="btn btn-primary" id="sendBtn">Send</button>
-        </div>
-      </form>
-
-      <noscript><p class="text-danger mt-3">JavaScript must be enabled to send messages.</p></noscript>
     {% endif %}
   </div>
 {% endblock %}
 
 {% block extra_js %}
   {% if not no_account %}
-    <script>
-      function chatGetCsrfToken() {
-        var field = document.querySelector("#chatForm [name='csrfmiddlewaretoken']");
-        if (field && field.value) return field.value;
-        return "";
-      }
-
-      async function chatPost(url, payload) {
-        var headers = { "Content-Type": "application/json", "Accept": "application/json" };
-        var token = chatGetCsrfToken();
-        if (token) headers["X-CSRFToken"] = token;
-        var res = await fetch(url, {
-          method: "POST",
-          credentials: "same-origin",
-          headers,
-          body: JSON.stringify(payload),
-        });
-        var data = {};
-        try {
-          data = await res.json();
-        } catch (e) {}
-        return { ok: res.ok, status: res.status, data };
-      }
-
-      function appendTranscriptRow(roleLabel, cssClass, text, intent) {
-        var root = document.getElementById("chatTranscript");
-        if (!root) return;
-
-        var border = roleLabel === "Assistant" ? "ps-3 bg-white border-bottom py-2" : "border-bottom py-2";
-        var wrapper = document.createElement("div");
-        wrapper.className = border;
-
-        var title = document.createElement("strong");
-        title.textContent = roleLabel;
-        title.className = cssClass || "text-secondary";
-
-        wrapper.appendChild(title);
-
-        var body = document.createElement("div");
-        body.innerText = text;
-        wrapper.appendChild(body);
-
-        if (intent) {
-          var small = document.createElement("small");
-          small.className = "text-muted";
-          small.innerText = "intent: " + intent;
-          wrapper.appendChild(document.createElement("br"));
-          wrapper.appendChild(small);
-        }
-
-        root.appendChild(wrapper);
-      }
-
-      async function handleSend() {
-        var textarea = document.getElementById("chatMessage");
-        var sessionEl = document.getElementById("chatSessionId");
-        var btn = document.getElementById("sendBtn");
-        var statusEl = document.getElementById("chatStatusLine");
-        var text = (textarea.value || "").trim();
-        if (!text || !sessionEl) return;
-
-        btn.disabled = true;
-        if (statusEl) statusEl.textContent = "Assistant is thinking...";
-
-        try {
-          var url = "{% url 'chatbot:post_message' %}";
-          var result = await chatPost(url, { session_id: parseInt(sessionEl.value, 10), message: text });
-          textarea.value = "";
-          if (!result.ok) {
-            if (statusEl)
-              statusEl.textContent =
-                (result.data && (result.data.detail || JSON.stringify(result.data.errors))) || "Request failed.";
-            return;
-          }
-          appendTranscriptRow("You", "text-secondary", text, result.data.intent || "");
-          appendTranscriptRow("Assistant", "text-primary", result.data.message || "", result.data.intent || "");
-          if (statusEl) statusEl.textContent = "";
-        } catch (err) {
-          if (statusEl) statusEl.textContent = "Network error. Try again.";
-        } finally {
-          btn.disabled = false;
-        }
-      }
-
-      async function handleNewChat() {
-        var sessionEl = document.getElementById("chatSessionId");
-        var statusEl = document.getElementById("chatStatusLine");
-        try {
-          var newSessionUrl = "{% url 'chatbot:new_session' %}";
-          var res = await chatPost(newSessionUrl, {});
-          if (!res.ok) {
-            if (statusEl) statusEl.textContent = res.data.detail || "Could not start new session.";
-            return;
-          }
-          if (res.data && res.data.session_id != null && sessionEl) {
-            sessionEl.value = String(res.data.session_id);
-          }
-          if (statusEl) statusEl.textContent = "Starting new chat…";
-          window.location.reload();
-        } catch (e) {
-          if (statusEl) statusEl.textContent = "Could not start new session.";
-        }
-      }
-
-      document.getElementById("sendBtn")?.addEventListener("click", handleSend);
-      document.getElementById("newChatBtn")?.addEventListener("click", handleNewChat);
-    </script>  {% endif %}
+    <script src="{% static 'chatbot/chatbot.js' %}" defer></script>
+  {% endif %}
 {% endblock %}

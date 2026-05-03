@@ -69,14 +69,14 @@ Customers only — agents/admins receive **403** (`GET /chatbot/`).
 
 Routes:
 
-- `GET /chatbot/` — minimal transcript page [`templates/chatbot/chat.html`](templates/chatbot/chat.html) (loads latest session or creates one)
-- `POST /chatbot/messages/` — JSON `{ "session_id": <int>, "message": "<text>" }` returns `{ ok, intent, message, session_id }` plus persisted rows
+- `GET /chatbot/` — transcript page [`templates/chatbot/chat.html`](templates/chatbot/chat.html) (loads the newest updated owned session unless `?session=<id>` selects another, or creates one)
+- `POST /chatbot/messages/` — JSON `{ "session_id": <int>, "message": "<text>" }` → `{ ok, session_id, intent, intents, message }` where **`intent`** is the primary topic persisted on the transcript row and **`intents`** is the full list of grounded intents for this turn (`[]` if `unsupported`; often several entries for compound questions such as balance + plan).
 - `POST /chatbot/sessions/new/` — JSON `{}` creates a fresh session `{ ok, session_id }`
 
 Requirements:
 
 1. **`GROQ_API_KEY`** in `.env` (see [.env.example](.env.example)). If missing, supported intents persist a polite **setup** reply (no hallucinated balances).
-2. JSON POST endpoints require the normal Django **CSRF** cookie/header (the template’s `fetch` sends `X-CSRFToken`).
+2. JSON POST endpoints require the normal Django **CSRF** cookie/header (the bundled `fetch` sends `X-CSRFToken`).
 
 Optional Django settings/env overrides (`config/settings.py` reads env unless noted):
 
@@ -88,7 +88,21 @@ Optional Django settings/env overrides (`config/settings.py` reads env unless no
 
 **Secrets are never persisted** inside chat tables beyond the grounded assistant reply itself.
 
-Automated regression tests: `python manage.py test chatbot` (Postgres required like other suites).
+### Dialogue routing (follow-ups & multi-part answers)
+
+Turns resolve one or more **grounded intents** using both keyword signals and recent transcript state (prior user and assistant intents; unsupported turns don’t wipe the topic). Compound questions (“What is my balance and what plan…?”) merge **namespaced DB sections** in one Groq payload so each fact stays keyed to plan vs balance. Short follow-ups (“Can you break that down?”) reuse the latest grounded intent when keywords alone would be ambiguous. Third-party probing (neighbor balance, cousin’s charges, …) stays **unsupported**.
+
+Automated regression tests: `python manage.py check` and `python manage.py test chatbot -v 2` (Postgres required like other suites).
+
+### Phase 3 — customer chat UI (Bootstrap + vanilla JS)
+
+- Bootstrap layout with transcript bubbles, empty state, sticky composer, and a sidebar listing the six starter questions plus a short grounding/privacy note.
+- Suggestions send immediately while send/sidebar/new-chat stay disabled until the round-trip completes; successful sends clear the textarea (failed requests leave your text intact).
+- “Assistant is thinking…” appears in-thread with a spinner; `aria-live` backs status + errors without exposing stack traces.
+- **New chat** creates a session then navigates to `?session=<new_id>` so refresh matches the rendered transcript.
+- **Navbar:** **`Chatbot` only when role is customer** — agents/admins still get **403** on `/chatbot/`.
+
+**Manual checks:** as `customer1`, use `/chatbot/`: tap each sidebar prompt; type Shift+Enter / Enter to send; try a neighbor-balance probe; **ask balance + plan in one sentence**; **follow up after a plan answer with “Can you break that down?”** without restating keywords; refresh to confirm persistence; start **New chat** and confirm UI + URL reset; briefly unset **`GROQ_API_KEY`** to confirm readable setup messaging; log in as `agent1` and confirm `/chatbot/` is **403** with no navbar link.
 
 ### Seed coverage for chat intents (fresh DB only)
 
