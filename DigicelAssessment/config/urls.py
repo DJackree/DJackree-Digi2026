@@ -8,4 +8,5 @@ urlpatterns = [
     path("", include("accounts.urls")),
     path("", include("complaints.urls")),
     path("", include("dashboard.urls")),
+    path("", include("chatbot.urls")),
 ]

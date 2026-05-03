@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Chat assistant · Telecom Portal{% endblock %}
+
+{% block content %}
+  <div class="container py-4">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+      <div>
+        <h1 class="h3 mb-1">Assistant</h1>
+        <p class="text-muted small mb-0">
+          Ask grounded questions about your account. Phase 3 will polish the transcript UI (fetch/streaming polish).
+        </p>
+      </div>
+      {% if not no_account %}
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="newChatBtn">New chat</button>
+        </div>
+      {% endif %}
+    </div>
+
+    {% if no_account %}
+      <div class="alert alert-warning shadow-sm border-0">
+        No customer account is linked to your user, so chat is unavailable right now.
+      </div>
+    {% else %}
+      <input type="hidden" name="session_id_field" id="chatSessionId" value="{{ session.pk }}" />
+      <div class="card shadow-sm mb-3">
+        <div class="card-body" style="min-height: 220px">
+          <div id="chatStatusLine" class="small text-muted mb-2">&nbsp;</div>
+          {% if messages %}
+            <div id="chatTranscript">
+              {% for m in messages %}
+                <div class="border-bottom py-2 {% if m.role == 'assistant' %}ps-3 bg-white{% endif %}">
+                  {% if m.role == "user" %}
+                    <strong class="text-secondary">You</strong>
+                  {% elif m.role == "assistant" %}
+                    <strong class="text-primary">Assistant</strong>
+                  {% endif %}
+                  <div>{{ m.content|escape|linebreaksbr }}</div>
+                  {% if m.intent %}<small class="text-muted">intent: {{ m.intent }}</small>{% endif %}
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div id="chatTranscript"><p class="text-muted mb-0">Say hello to begin your conversation.</p></div>
+          {% endif %}
+        </div>
+      </div>
+
+      <form id="chatForm" class="card shadow-sm border-0" onsubmit="return false;">
+        {% csrf_token %}
+        <div class="card-body">
+          <label for="chatMessage" class="form-label fw-semibold">Your message</label>
+          <textarea
+            id="chatMessage"
+            class="form-control"
+            maxlength="{{ max_chars }}"
+            rows="3"
+            placeholder="Example: What plan am I currently on?"
+            required
+          ></textarea>
+          <div class="small text-muted mt-1">{{ max_chars }} characters max · JSON POST to `/chatbot/messages/`.</div>
+        </div>
+        <div class="card-footer d-flex justify-content-end gap-2">
+          <button type="button" class="btn btn-primary" id="sendBtn">Send</button>
+        </div>
+      </form>
+
+      <noscript><p class="text-danger mt-3">JavaScript must be enabled to send messages.</p></noscript>
+    {% endif %}
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  {% if not no_account %}
+    <script>
+      function chatGetCsrfToken() {
+        var field = document.querySelector("#chatForm [name='csrfmiddlewaretoken']");
+        if (field && field.value) return field.value;
+        return "";
+      }
+
+      async function chatPost(url, payload) {
+        var headers = { "Content-Type": "application/json", "Accept": "application/json" };
+        var token = chatGetCsrfToken();
+        if (token) headers["X-CSRFToken"] = token;
+        var res = await fetch(url, {
+          method: "POST",
+          credentials: "same-origin",
+          headers,
+          body: JSON.stringify(payload),
+        });
+        var data = {};
+        try {
+          data = await res.json();
+        } catch (e) {}
+        return { ok: res.ok, status: res.status, data };
+      }
+
+      function appendTranscriptRow(roleLabel, cssClass, text, intent) {
+        var root = document.getElementById("chatTranscript");
+        if (!root) return;
+
+        var border = roleLabel === "Assistant" ? "ps-3 bg-white border-bottom py-2" : "border-bottom py-2";
+        var wrapper = document.createElement("div");
+        wrapper.className = border;
+
+        var title = document.createElement("strong");
+        title.textContent = roleLabel;
+        title.className = cssClass || "text-secondary";
+
+        wrapper.appendChild(title);
+
+        var body = document.createElement("div");
+        body.innerText = text;
+        wrapper.appendChild(body);
+
+        if (intent) {
+          var small = document.createElement("small");
+          small.className = "text-muted";
+          small.innerText = "intent: " + intent;
+          wrapper.appendChild(document.createElement("br"));
+          wrapper.appendChild(small);
+        }
+
+        root.appendChild(wrapper);
+      }
+
+      async function handleSend() {
+        var textarea = document.getElementById("chatMessage");
+        var sessionEl = document.getElementById("chatSessionId");
+        var btn = document.getElementById("sendBtn");
+        var statusEl = document.getElementById("chatStatusLine");
+        var text = (textarea.value || "").trim();
+        if (!text || !sessionEl) return;
+
+        btn.disabled = true;
+        if (statusEl) statusEl.textContent = "Assistant is thinking...";
+
+        try {
+          var url = "{% url 'chatbot:post_message' %}";
+          var result = await chatPost(url, { session_id: parseInt(sessionEl.value, 10), message: text });
+          textarea.value = "";
+          if (!result.ok) {
+            if (statusEl)
+              statusEl.textContent =
+                (result.data && (result.data.detail || JSON.stringify(result.data.errors))) || "Request failed.";
+            return;
+          }
+          appendTranscriptRow("You", "text-secondary", text, result.data.intent || "");
+          appendTranscriptRow("Assistant", "text-primary", result.data.message || "", result.data.intent || "");
+          if (statusEl) statusEl.textContent = "";
+        } catch (err) {
+          if (statusEl) statusEl.textContent = "Network error. Try again.";
+        } finally {
+          btn.disabled = false;
+        }
+      }
+
+      async function handleNewChat() {
+        var sessionEl = document.getElementById("chatSessionId");
+        var statusEl = document.getElementById("chatStatusLine");
+        try {
+          var newSessionUrl = "{% url 'chatbot:new_session' %}";
+          var res = await chatPost(newSessionUrl, {});
+          if (!res.ok) {
+            if (statusEl) statusEl.textContent = res.data.detail || "Could not start new session.";
+            return;
+          }
+          if (res.data && res.data.session_id != null && sessionEl) {
+            sessionEl.value = String(res.data.session_id);
+          }
+          if (statusEl) statusEl.textContent = "Starting new chat…";
+          window.location.reload();
+        } catch (e) {
+          if (statusEl) statusEl.textContent = "Could not start new session.";
+        }
+      }
+
+      document.getElementById("sendBtn")?.addEventListener("click", handleSend);
+      document.getElementById("newChatBtn")?.addEventListener("click", handleNewChat);
+    </script>  {% endif %}
+{% endblock %}

@@ -107,6 +107,43 @@ python manage.py runserver
 
 Default URL: `http://127.0.0.1:8000/` — admin at `/admin/` (after seeding, log in with the seeded admin user from the project README).
 
+## Django: automated tests (`chatbot` app)
+
+Runs the **PostgreSQL-backed** Django test suite for the **chatbot** app (session/message persistence, intent detection, customer-only API handling, mocked Groq paths, and related regression checks).
+
+### What happens when you run this
+
+1. Django connects to Postgres using **`DigicelAssessment/.env`** (same connection settings as `migrate`).
+2. It creates an **empty, disposable database** whose name is your configured `POSTGRES_DB` with a **`test_` prefix** (for example **`test_telecom_portal`** when `POSTGRES_DB=telecom_portal`).
+3. It applies **all migrations** to that test database.
+4. It runs the tests defined under **`DigicelAssessment/chatbot/tests.py`** and prints pass/fail output.
+
+Groq credentials are **not required** for the included tests—the suite **patches** `ask_groq` where it needs deterministic behavior. Postgres **must** be running and reachable (`connection timeout` / `OperationalError` during “Creating test database…” means Postgres is stopped or **`POSTGRES_HOST` / credentials / port** do not match your setup).
+
+### When to run it
+
+Before or while changing **`chatbot/`** routes, intents, contexts, prompts, Groq integration, or customer permissions.
+
+### Command
+
+From **`DigicelAssessment/`** with the virtual environment activated and Postgres running (from repo root: `docker compose up -d db`). When Django runs **on your machine** outside the Compose **`web`** service, **`POSTGRES_HOST=localhost`** should be set in `.env`:
+
+```bash
+python manage.py test chatbot -v 2
+```
+
+Optional: reuse an existing local test DB for faster repeats (drops less work between runs):
+
+```bash
+python manage.py test chatbot -v 2 --keepdb
+```
+
+Run chatbot tests together with other modules’ suites:
+
+```bash
+python manage.py test complaints dashboard chatbot -v 2
+```
+
 ## Django: checks (optional)
 
 ```bash

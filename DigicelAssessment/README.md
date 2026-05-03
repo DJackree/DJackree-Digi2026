@@ -57,15 +57,40 @@ Workflow rules live in [`complaints/services.py`](complaints/services.py). Autom
 
 **Quick verification:** sign in as `customer1`, `agent1`, and `admin` and exercise the Complaints/Dashboard links in the navbar (`/complaints/`, `/agent/complaints/`, `/admin-portal/dashboard/`). Visiting `/admin-portal/` while logged in as a customer must still return **403**.
 
-## AI chatbot — Phase 1 (database persistence)
+## AI chatbot
 
-Phase 1 adds the `chatbot` app with **`ChatSession`** and **`ChatMessage`** models plus admin registration. Applying migrations creates the transcript tables; **no scripted chat transcripts** are seeded (history is meant to accumulate via the UI once Phase 2/3 ship).
+### Phase 1 — persistence
 
-After `python manage.py migrate`, you can inspect `ChatSession` / `ChatMessage` in Django admin (`/admin/`).
+Adds **`ChatSession`** and **`ChatMessage`** models plus admin visibility. Applying migrations creates the transcript tables.
 
-Phase 2+ will route customers through Groq using `GROQ_API_KEY` (see [.env.example](.env.example)); **secrets are never stored in chat tables**.
+### Phase 2 — backend (Groq-backed, customer scoped)
 
-### Seed coverage for upcoming chat intents (fresh DB only)
+Customers only — agents/admins receive **403** (`GET /chatbot/`).
+
+Routes:
+
+- `GET /chatbot/` — minimal transcript page [`templates/chatbot/chat.html`](templates/chatbot/chat.html) (loads latest session or creates one)
+- `POST /chatbot/messages/` — JSON `{ "session_id": <int>, "message": "<text>" }` returns `{ ok, intent, message, session_id }` plus persisted rows
+- `POST /chatbot/sessions/new/` — JSON `{}` creates a fresh session `{ ok, session_id }`
+
+Requirements:
+
+1. **`GROQ_API_KEY`** in `.env` (see [.env.example](.env.example)). If missing, supported intents persist a polite **setup** reply (no hallucinated balances).
+2. JSON POST endpoints require the normal Django **CSRF** cookie/header (the template’s `fetch` sends `X-CSRFToken`).
+
+Optional Django settings/env overrides (`config/settings.py` reads env unless noted):
+
+- `GROQ_MODEL` — defaults to **`llama-3.1-8b-instant`**
+- `GROQ_TIMEOUT_SECONDS` — HTTP timeout for Groq SDK (default **30**)
+- `GROQ_MAX_COMPLETION_TOKENS` — cap completion tokens (default **512**)
+- `CHATBOT_MESSAGE_MAX_LENGTH` — incoming message ceiling (default **1000**, matches prior plan)
+- `CHATBOT_DEFAULT_CURRENCY` — shown in ACCOUNT_CONTEXT payloads (default **JMD**)
+
+**Secrets are never persisted** inside chat tables beyond the grounded assistant reply itself.
+
+Automated regression tests: `python manage.py test chatbot` (Postgres required like other suites).
+
+### Seed coverage for chat intents (fresh DB only)
 
 After a **full** `seed_data` run on an empty DB, each seeded customer (`customer1` … `customer5`) has:
 
@@ -76,5 +101,3 @@ After a **full** `seed_data` run on an empty DB, each seeded customer (`customer
 - An active **`NetworkOutage` in Kingston** aligns with **`customer1`**’s account region (**active outages / faults** intent)
 
 If your database already has users, `seed_data --if-empty` **skips** those records; reset the DB if you need the demo rows for intent testing.
-
-**Tests:** `python manage.py test chatbot` (requires Postgres reachable using your `.env`, same as the complaints/dashboard suite).

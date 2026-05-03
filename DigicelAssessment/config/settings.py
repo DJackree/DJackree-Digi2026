@@ -117,3 +117,12 @@ MESSAGE_TAGS = {
     message_constants.ERROR: "danger",
 }
 
+# --- AI chatbot (Phase 2) ---
+GROQ_API_KEY = (os.environ.get("GROQ_API_KEY") or "").strip() or None
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")
+GROQ_TIMEOUT_SECONDS = float(os.environ.get("GROQ_TIMEOUT_SECONDS", "30"))
+GROQ_MAX_COMPLETION_TOKENS = int(os.environ.get("GROQ_MAX_COMPLETION_TOKENS", "512"))
+CHATBOT_MESSAGE_MAX_LENGTH = int(os.environ.get("CHATBOT_MESSAGE_MAX_LENGTH", "1000"))
+CHATBOT_RECENT_MESSAGE_COUNT = int(os.environ.get("CHATBOT_RECENT_MESSAGE_COUNT", "8"))
+CHATBOT_DEFAULT_CURRENCY = os.environ.get("CHATBOT_DEFAULT_CURRENCY", "JMD")
+
