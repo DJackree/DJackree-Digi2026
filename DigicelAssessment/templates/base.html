@@ -45,12 +45,7 @@
                       <a class="nav-link" href="{% url 'complaints:customer_complaint_create' %}">New complaint</a>
                     </li>
                     <li class="nav-item">
-                      <span
-                        class="nav-link disabled"
-                        tabindex="-1"
-                        title="Chatbot module (plan 03)"
-                        >Chatbot</span
-                      >
+                      <a class="nav-link" href="{% url 'chatbot:chat_home' %}">Chatbot</a>
                     </li>
                   {% elif role == "agent" %}
                     <li class="nav-item">
