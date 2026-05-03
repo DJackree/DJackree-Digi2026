@@ -1,6 +1,8 @@
 #!/bin/sh
+# Docker "web" container startup: wait for Postgres, migrate, seed once, run Django.
 set -e
 
+# Block until the database accepts connections (Compose healthcheck also runs on db).
 echo "Waiting for PostgreSQL (${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432})..."
 until pg_isready -h "${POSTGRES_HOST:-db}" -p "${POSTGRES_PORT:-5432}" -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -q; do
   sleep 1

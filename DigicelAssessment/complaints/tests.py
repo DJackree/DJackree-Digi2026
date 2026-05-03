@@ -1,4 +1,7 @@
-"""Backend tests for complaints Phase 2."""
+"""Automated tests for complaint models, services, and HTTP permissions.
+
+Run with ``python manage.py test complaints`` once PostgreSQL is available.
+"""
 
 from __future__ import annotations
 

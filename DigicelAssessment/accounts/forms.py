@@ -1,8 +1,14 @@
+"""Login form styling for Bootstrap templates.
+
+Django's default login form works logically but looks plain. We attach CSS classes
+so the username and password fields match the rest of the site's Bootstrap layout.
+"""
+
 from django.contrib.auth.forms import AuthenticationForm
 
 
 class BootstrapAuthenticationForm(AuthenticationForm):
-    """Adds Bootstrap form-control classes for Phase 3 templates."""
+    """Login form with Bootstrap-friendly CSS classes on the input widgets."""
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)

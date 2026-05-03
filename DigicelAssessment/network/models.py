@@ -1,9 +1,15 @@
-"""Network outage / fault records for admin and chatbot lookups."""
+"""Records of network problems in a geographic region.
+
+These rows power "are there outages in my area?" in the chatbot and can be shown
+in admin. ``is_active`` marks problems that are still ongoing.
+"""
 
 from django.db import models
 
 
 class NetworkOutage(models.Model):
+    """One outage event: where it is, headline text, details, and time window."""
+
     region = models.CharField(max_length=100, db_index=True)
     title = models.CharField(max_length=200)
     description = models.TextField()

@@ -1,4 +1,8 @@
-"""Groq SDK wrapper with timeouts and safe error propagation."""
+"""Call Groq's chat API with strict prompts built from database-backed context.
+
+Errors are turned into small exception types so HTTP views can show friendly text
+without leaking raw vendor error bodies to end users.
+"""
 
 from __future__ import annotations
 
@@ -30,7 +34,12 @@ class ChatbotGroqBadResponse(ChatbotGroqError):
 
 
 def ask_groq(*, question: str, context: dict, recent_messages, currency_code: str) -> str:
-    """Invoke Groq chat completion once; callers handle persistence/error messaging."""
+    """Send one chat completion request and return the assistant's text reply.
+
+    ``context`` is the JSON built in ``chatbot.context`` (facts only). Recent
+    transcript lines help the model understand short follow-ups like "what about last month?".
+    """
+
     api_key = getattr(settings, "GROQ_API_KEY", None)
     if not api_key:
         raise ChatbotGroqMisconfigured("GROQ_API_KEY is missing.")

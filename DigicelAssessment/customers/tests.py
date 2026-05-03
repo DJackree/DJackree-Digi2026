@@ -1,2 +1,1 @@
-# Tests added in later phases.
-
+"""Placeholder for future ``customers`` app tests."""

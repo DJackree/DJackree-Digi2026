@@ -1,3 +1,10 @@
+"""Django admin registration for users and their profiles.
+
+Lets staff inspect and edit ``User`` and ``UserProfile`` records in /admin/.
+We re-register ``User`` with search enabled so other admins (like customer
+accounts) can autocomplete users by name or email.
+"""
+
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User

@@ -1,8 +1,17 @@
+"""Telecom account data: plans customers can buy and usage tied to each account.
+
+``ServicePlan`` is the product catalog. ``CustomerAccount`` links a Django user to
+an account number, balance, and chosen plan. ``AccountUsage`` stores how much of
+the allowance was used in a date range. ``Payment`` records money in from the customer.
+"""
+
 from django.contrib.auth.models import User
 from django.db import models
 
 
 class ServicePlan(models.Model):
+    """One retail plan name with price and monthly allowances (data, minutes, SMS)."""
+
     name = models.CharField(max_length=100, unique=True)
     monthly_price = models.DecimalField(max_digits=8, decimal_places=2)
     data_allowance_gb = models.DecimalField(max_digits=8, decimal_places=2)
@@ -15,6 +24,8 @@ class ServicePlan(models.Model):
 
 
 class CustomerAccount(models.Model):
+    """The billable account belonging to one portal customer (one Django user)."""
+
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
@@ -36,6 +47,8 @@ class CustomerAccount(models.Model):
 
 
 class AccountUsage(models.Model):
+    """Snapshot of usage (data, calls, SMS) for one account over a calendar window."""
+
     account = models.ForeignKey(
         CustomerAccount,
         on_delete=models.CASCADE,
@@ -58,6 +71,8 @@ class AccountUsage(models.Model):
 
 
 class Payment(models.Model):
+    """A single payment posted against a customer account (amount, time, bank reference)."""
+
     account = models.ForeignKey(
         CustomerAccount,
         on_delete=models.CASCADE,

@@ -1,3 +1,9 @@
+"""Public and staff URL paths for the complaint module.
+
+Customers use ``/complaints/...``; agents use ``/agent/complaints/...``; admins use
+``/admin-portal/complaints/...`` so routes do not clash with Django's ``/admin/``.
+"""
+
 from django.urls import path
 
 from . import views

@@ -1,4 +1,4 @@
-"""WSGI config for telecom portal project."""
+"""WSGI entry point: how production servers (Gunicorn, uvicorn with WSGI) load this project."""
 
 import os
 

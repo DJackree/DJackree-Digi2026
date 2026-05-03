@@ -1,3 +1,5 @@
+"""Smoke tests that dashboard metric keys exist (empty DB is fine for structure checks)."""
+
 from django.test import TestCase
 
 from dashboard.services import get_dashboard_metrics

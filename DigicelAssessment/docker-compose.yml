@@ -1,3 +1,4 @@
+# Local dev stack: PostgreSQL + Django web app (see entrypoint.sh for migrate/seed/runserver).
 services:
   db:
     image: postgres:16

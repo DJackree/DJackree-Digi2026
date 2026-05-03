@@ -1,4 +1,4 @@
-"""Dashboard metrics derived from complaints."""
+"""Read-only aggregations on top of ``Complaint`` rows for the admin dashboard."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ from complaints.services import get_average_resolution_time, get_sla_breaches
 
 
 def get_dashboard_metrics():
+    """Return dicts/lists the template can loop without further database hits."""
+
     return {
         "by_status": {
             status: Complaint.objects.filter(status=status).count()

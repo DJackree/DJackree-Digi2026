@@ -1,4 +1,8 @@
-"""Rule-based intent detection for the AI customer chatbot."""
+"""Lightweight keyword and phrase rules to guess what a chat user is asking.
+
+This is *not* machine learning — it is a predictable rules engine so tests and
+reviewers can see exactly why a message maps to an intent like ``account_balance``.
+"""
 
 from __future__ import annotations
 
@@ -243,7 +247,12 @@ def _looks_dialogue_followup(words: frozenset[str], text: str, state: DialogueSt
 
 
 def detect_intents(message: str, dialogue_state: DialogueState | None = None) -> list[str]:
-    """Return one or more grounded intents or ``['unsupported']`` for this customer turn."""
+    """Classify the customer's latest message.
+
+    Returns a list so we can answer multi-part questions (for example balance *and*
+    outages). ``dialogue_state`` helps interpret short replies like "yes" that refer
+    to the previous topic.
+    """
 
     dialogue_state = dialogue_state or DialogueState(last_grounded_intent=None)
     text = _normalize_text(message)

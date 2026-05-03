@@ -1,4 +1,8 @@
-"""Django settings for Telecom Customer Portal (Phase 1 foundation)."""
+"""Django settings for the Telecom Customer Portal.
+
+Values like database name and Groq API keys come from ``DigicelAssessment/.env``,
+loaded below with ``python-dotenv``. Never commit real secrets; use ``.env`` locally.
+"""
 
 import os
 from pathlib import Path
@@ -11,6 +15,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env")
 
+# Used to sign cookies and CSRF tokens. Must be secret in any shared environment.
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-insecure-change-me-for-production")
 
 DEBUG = os.environ.get("DJANGO_DEBUG", "True").lower() in ("1", "true", "yes")
@@ -22,6 +27,7 @@ ALLOWED_HOSTS = [
 ]
 
 
+# Project apps plus Django's built-in apps (auth, sessions, static files, admin).
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -38,6 +44,7 @@ INSTALLED_APPS = [
     "core",
 ]
 
+# Request pipeline: security, session, CSRF, auth, messages, clickjacking protection.
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -67,6 +74,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+# Single PostgreSQL database; credentials match the Docker ``db`` service by default.
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -98,7 +106,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# --- Phase 2: authentication and role routing ---
+# --- Authentication (where login/logout URLs live in our URLconf) ---
 LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "accounts:home"
 LOGOUT_REDIRECT_URL = "accounts:login"
@@ -117,7 +125,7 @@ MESSAGE_TAGS = {
     message_constants.ERROR: "danger",
 }
 
-# --- AI chatbot (Phase 2) ---
+# --- AI chatbot (Groq); all optional keys have defaults except API key for real answers ---
 GROQ_API_KEY = (os.environ.get("GROQ_API_KEY") or "").strip() or None
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")
 GROQ_TIMEOUT_SECONDS = float(os.environ.get("GROQ_TIMEOUT_SECONDS", "30"))

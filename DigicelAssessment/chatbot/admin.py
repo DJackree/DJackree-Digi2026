@@ -1,3 +1,5 @@
+"""Admin list/search for chat sessions (mostly for support debugging)."""
+
 from django.contrib import admin
 
 from .models import ChatMessage, ChatSession

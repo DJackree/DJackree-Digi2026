@@ -1,3 +1,10 @@
+"""URL routes for login, logout, and role-specific home pages.
+
+The empty path ``""`` sends people to the right dashboard after they land on
+the site root. Login and logout live under ``/accounts/...``. Customer, agent,
+and admin "lobby" pages use paths that match the nav bar in templates.
+"""
+
 from django.urls import path
 
 from . import views

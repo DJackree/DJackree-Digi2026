@@ -1,4 +1,4 @@
-"""ASGI config for telecom portal project."""
+"""ASGI entry point: only needed if you run Django with an ASGI server and async features."""
 
 import os
 

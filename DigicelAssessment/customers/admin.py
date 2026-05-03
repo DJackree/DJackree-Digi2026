@@ -1,3 +1,5 @@
+"""Admin screens for service plans, accounts, usage rows, and payments."""
+
 from django.contrib import admin
 
 from .models import AccountUsage, CustomerAccount, Payment, ServicePlan

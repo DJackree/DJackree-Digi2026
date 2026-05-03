@@ -1,8 +1,21 @@
+"""User profile linked to Django auth users.
+
+Each login has exactly one profile row (when seeded correctly). The profile stores
+*which portal role* someone has (customer, agent, or admin) and an optional *region*
+string used for things like outage lookups in the chatbot.
+"""
+
 from django.contrib.auth.models import User
 from django.db import models
 
 
 class UserProfile(models.Model):
+    """Extra facts about a user account beyond username and password.
+
+    Django's built-in ``User`` model handles authentication. This table adds
+    business fields: what kind of portal user they are and where they are located.
+    """
+
     class Role(models.TextChoices):
         CUSTOMER = "customer", "Customer"
         AGENT = "agent", "Agent"

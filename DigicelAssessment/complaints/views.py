@@ -1,4 +1,9 @@
-"""Complaint HTTP handlers (roles, workflows, and Bootstrap UI)."""
+"""Web pages and form posts for customer tickets, agent queues, and admin oversight.
+
+Each view is wrapped with ``@role_required`` so customers cannot open agent URLs.
+Heavy logic (who may change status) lives in ``complaints.services``; this file
+mostly loads templates, validates forms, and redirects with flash messages.
+"""
 
 from __future__ import annotations
 
@@ -37,10 +42,14 @@ from customers.services import get_customer_account_for_user
 
 
 def _sla_cutoff():
+    """Return the moment in time used as the "older than five days" SLA line."""
+
     return timezone.now() - timedelta(days=5)
 
 
 def _complaint_age_days(complaint: Complaint) -> float:
+    """How many full days since the ticket was created (for queue sorting and labels)."""
+
     return (timezone.now() - complaint.created_at).total_seconds() / 86400
 
 
@@ -65,6 +74,8 @@ def _customer_timeline_rows(complaint: Complaint) -> list[dict[str, object]]:
 @role_required(UserProfile.Role.CUSTOMER)
 @require_http_methods(["GET", "HEAD"])
 def customer_complaint_list(request):
+    """List the signed-in customer's tickets newest-first."""
+
     qs = get_customer_complaints(request.user).order_by("-created_at")
     return render(
         request,
@@ -76,6 +87,8 @@ def customer_complaint_list(request):
 @role_required(UserProfile.Role.CUSTOMER)
 @require_http_methods(["GET", "HEAD", "POST"])
 def customer_complaint_create(request):
+    """Show the new-ticket form or accept POST to create an Open ticket + history row."""
+
     account = get_customer_account_for_user(request.user)
     if account is None:
         messages.error(request, "No customer account is linked to your user.")
@@ -120,6 +133,8 @@ def customer_complaint_create(request):
 @role_required(UserProfile.Role.CUSTOMER)
 @require_http_methods(["GET", "HEAD"])
 def customer_complaint_detail(request, reference: str):
+    """Read-only ticket view with a simple status timeline (no internal notes)."""
+
     complaint = get_object_or_404(
         get_customer_complaints(request.user),
         reference=reference,
@@ -138,6 +153,8 @@ def customer_complaint_detail(request, reference: str):
 @role_required(UserProfile.Role.AGENT)
 @require_http_methods(["GET", "HEAD"])
 def agent_complaint_queue(request):
+    """Work queue of tickets assigned to this agent, with optional filters and SLA warning flags."""
+
     valid_status = {s for s, _ in Complaint.Status.choices}
     valid_category = {c for c, _ in Complaint.Category.choices}
 
@@ -177,6 +194,8 @@ def agent_complaint_queue(request):
 
 
 def _agent_complaint_or_404(request, reference: str) -> Complaint:
+    """Fetch a ticket that both exists and is assigned to the current agent."""
+
     return get_object_or_404(
         get_agent_complaints(request.user),
         reference=reference,
@@ -186,6 +205,8 @@ def _agent_complaint_or_404(request, reference: str) -> Complaint:
 @role_required(UserProfile.Role.AGENT)
 @require_http_methods(["GET", "HEAD"])
 def agent_complaint_detail(request, reference: str):
+    """Single ticket workspace: allowed status moves, notes, escalation."""
+
     complaint = _agent_complaint_or_404(request, reference)
     allowed = get_allowed_statuses(request.user, complaint)
     status_form = ComplaintStatusUpdateForm(allowed_statuses=allowed)
@@ -215,6 +236,8 @@ def agent_complaint_detail(request, reference: str):
 @role_required(UserProfile.Role.AGENT)
 @require_POST
 def agent_update_status(request, reference: str):
+    """POST handler: apply one allowed workflow transition from the status form."""
+
     complaint = _agent_complaint_or_404(request, reference)
     allowed = get_allowed_statuses(request.user, complaint)
     form = ComplaintStatusUpdateForm(
@@ -248,6 +271,8 @@ def agent_update_status(request, reference: str):
 @role_required(UserProfile.Role.AGENT)
 @require_POST
 def agent_add_note(request, reference: str):
+    """POST handler: save an internal note on an assigned ticket."""
+
     complaint = _agent_complaint_or_404(request, reference)
     form = ComplaintNoteForm(request.POST)
     if not form.is_valid():
@@ -277,6 +302,8 @@ def agent_add_note(request, reference: str):
 @role_required(UserProfile.Role.AGENT)
 @require_POST
 def agent_escalate(request, reference: str):
+    """POST handler: move ticket to Escalated with a required reason string."""
+
     complaint = _agent_complaint_or_404(request, reference)
     form = EscalationForm(request.POST)
     if not form.is_valid():
@@ -303,12 +330,16 @@ def agent_escalate(request, reference: str):
 
 
 def _admin_complaint_or_404(reference: str) -> Complaint:
+    """Look up any ticket by reference (admin scope)."""
+
     return get_object_or_404(get_admin_complaints(), reference=reference)
 
 
 @role_required(UserProfile.Role.ADMIN)
 @require_http_methods(["GET", "HEAD"])
 def admin_complaint_list(request):
+    """Full ticket list with filters for status, category, assigned agent, SLA breach only."""
+
     valid_status = {s for s, _ in Complaint.Status.choices}
     valid_category = {c for c, _ in Complaint.Category.choices}
 
@@ -363,6 +394,8 @@ def admin_complaint_list(request):
 @role_required(UserProfile.Role.ADMIN)
 @require_http_methods(["GET", "HEAD"])
 def admin_complaint_detail(request, reference: str):
+    """Inspect any ticket, assign an agent, or override status to any value."""
+
     complaint = _admin_complaint_or_404(reference)
     assign_form = ComplaintAssignmentForm()
     admin_status_form = AdminStatusOverrideForm()
@@ -384,6 +417,8 @@ def admin_complaint_detail(request, reference: str):
 @role_required(UserProfile.Role.ADMIN)
 @require_POST
 def admin_assign_complaint(request, reference: str):
+    """POST handler: set ``assigned_agent`` from the admin assignment form."""
+
     complaint = _admin_complaint_or_404(reference)
     form = ComplaintAssignmentForm(request.POST)
     if not form.is_valid():
@@ -412,6 +447,8 @@ def admin_assign_complaint(request, reference: str):
 @role_required(UserProfile.Role.ADMIN)
 @require_POST
 def admin_update_status(request, reference: str):
+    """POST handler: admin may jump the ticket to any legal status code."""
+
     complaint = _admin_complaint_or_404(reference)
     form = AdminStatusOverrideForm(request.POST)
     if not form.is_valid():

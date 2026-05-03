@@ -1,4 +1,8 @@
-"""Template filters for complaint UI labels and badges."""
+"""Bootstrap-friendly labels for complaint status/category codes in templates.
+
+Templates stay dumb: they call these filters to turn database codes into English
+labels and pick a Bootstrap badge color.
+"""
 
 from django import template
 

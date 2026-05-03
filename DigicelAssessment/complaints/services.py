@@ -1,4 +1,8 @@
-"""Complaint workflow, permissions, SLA helpers."""
+"""Business rules for complaints: who may do what, and how status changes work.
+
+Views should call these functions instead of editing ``Complaint`` rows directly,
+so workflow rules and audit notes stay consistent.
+"""
 
 from __future__ import annotations
 
@@ -25,18 +29,26 @@ AGENT_FORWARD_TRANSITIONS: dict[str, list[str]] = {
 
 
 def get_customer_complaints(user: User) -> QuerySet[Complaint]:
+    """Tickets that belong to this customer's linked account."""
+
     return Complaint.objects.filter(customer_account__user=user)
 
 
 def get_agent_complaints(user: User) -> QuerySet[Complaint]:
+    """Tickets currently assigned to this agent user."""
+
     return Complaint.objects.filter(assigned_agent=user)
 
 
 def get_admin_complaints() -> QuerySet[Complaint]:
+    """Every ticket in the system (admin reporting and assignment screens)."""
+
     return Complaint.objects.all()
 
 
 def get_allowed_statuses(user: User, complaint: Complaint) -> list[str]:
+    """Statuses this user may move the ticket to *from its current status*."""
+
     if is_admin(user):
         return [s for s, _ in Complaint.Status.choices]
     if is_agent(user):
@@ -45,6 +57,8 @@ def get_allowed_statuses(user: User, complaint: Complaint) -> list[str]:
 
 
 def _ensure_agent_assigned(user: User, complaint: Complaint) -> None:
+    """Raise a validation error unless this agent owns the ticket."""
+
     if complaint.assigned_agent_id != user.id:
         raise ValidationError("You can only work on complaints assigned to you.")
 
@@ -56,7 +70,10 @@ def change_complaint_status(
     changed_by: User,
     note: str = "",
 ) -> Complaint:
-    """Apply a status change with workflow rules and audit trail."""
+    """Move a ticket to a new status, writing history (and optional internal note).
+
+    Enforces agent workflow steps; admins may jump to any valid status code.
+    """
 
     valid = {s for s, _ in Complaint.Status.choices}
     if new_status not in valid:
@@ -85,7 +102,7 @@ def change_complaint_status(
             if complaint.resolved_at is None:
                 complaint.resolved_at = timezone.now()
         elif old_status in (Complaint.Status.RESOLVED, Complaint.Status.CLOSED):
-            # Admin reopened / moved backward from terminal-ish states.
+            # Moving backward from "done" states clears the resolution timestamp unless still terminal.
             if is_admin(changed_by) and new_status not in (
                 Complaint.Status.RESOLVED,
                 Complaint.Status.CLOSED,
@@ -114,6 +131,8 @@ def change_complaint_status(
 
 
 def assign_complaint(*, complaint: Complaint, agent: User, assigned_by: User) -> Complaint:
+    """Point a ticket at an agent and leave an internal note who did it."""
+
     if not is_admin(assigned_by):
         raise PermissionDenied("Only admins can assign complaints.")
 
@@ -141,6 +160,8 @@ def assign_complaint(*, complaint: Complaint, agent: User, assigned_by: User) ->
 
 
 def add_complaint_note(*, complaint: Complaint, author: User, body: str, is_internal: bool = True) -> ComplaintNote:
+    """Attach a free-text note; agents may only note on their own assigned tickets."""
+
     if not (is_agent(author) or is_admin(author)):
         raise PermissionDenied("Only agents and admins can add notes.")
 
@@ -160,6 +181,8 @@ def add_complaint_note(*, complaint: Complaint, author: User, body: str, is_inte
 
 
 def escalate_complaint(*, complaint: Complaint, agent: User, reason: str) -> Complaint:
+    """Agent-only path: store escalation text and force status to Escalated."""
+
     if not is_agent(agent):
         raise PermissionDenied("Only agents can escalate assigned complaints.")
 
@@ -184,6 +207,8 @@ def escalate_complaint(*, complaint: Complaint, agent: User, reason: str) -> Com
 
 
 def get_sla_breaches() -> QuerySet[Complaint]:
+    """Tickets still open after five days since submission (used on admin dashboard)."""
+
     cutoff = timezone.now() - timedelta(days=5)
     return Complaint.objects.exclude(
         status__in=[Complaint.Status.RESOLVED, Complaint.Status.CLOSED],
@@ -191,7 +216,7 @@ def get_sla_breaches() -> QuerySet[Complaint]:
 
 
 def get_average_resolution_time():
-    """Return average timedelta for resolved complaints, or None if none."""
+    """Average time from ticket creation to resolution across all resolved tickets."""
 
     qs = Complaint.objects.filter(resolved_at__isnull=False).only("created_at", "resolved_at")
     deltas: list[timedelta] = []

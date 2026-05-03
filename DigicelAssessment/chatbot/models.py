@@ -1,11 +1,15 @@
-"""Chat session and message persistence for the customer-facing AI chatbot."""
+"""Store each customer's chat threads and individual user/assistant lines.
+
+The UI and JSON API read/write these rows; intents are stored on user messages to
+debug what the classifier did for each turn.
+"""
 
 from django.contrib.auth.models import User
 from django.db import models
 
 
 class ChatSession(models.Model):
-    """A conversation belonging to exactly one Django user."""
+    """One ongoing chat thread for a single logged-in customer."""
 
     user = models.ForeignKey(
         User,
@@ -31,7 +35,7 @@ class ChatSession(models.Model):
 
 
 class ChatMessage(models.Model):
-    """One turn in a chat session transcript."""
+    """One bubble in the transcript, either from the customer or from the assistant."""
 
     class Role(models.TextChoices):
         USER = "user", "User"

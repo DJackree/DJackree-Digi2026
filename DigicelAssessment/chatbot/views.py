@@ -1,4 +1,8 @@
-"""Chatbot HTTP handlers (deterministic intents + grounded Groq)."""
+"""Chatbot HTTP + JSON API: render the page and receive messages from JavaScript.
+
+Flow: detect intents → load DB context → optionally call Groq → store both sides
+of the conversation in ``ChatMessage`` rows for history and follow-up detection.
+"""
 
 from __future__ import annotations
 
@@ -48,6 +52,8 @@ CHATBOT_SUGGESTED_QUESTIONS = [
 
 
 def _json_errors(status: int, payload: dict) -> JsonResponse:
+    """Standard error shape for the chat JavaScript (always includes ``ok: false``)."""
+
     body = dict(payload)
     body.setdefault("ok", False)
     return JsonResponse(body, status=status)
@@ -70,11 +76,15 @@ def _resolve_customer_chat_session(request) -> ChatSession:
 
 
 def _touch_session(session: ChatSession) -> None:
+    """Bump ``updated_at`` so the session list sorts with newest activity first."""
+
     session.updated_at = timezone.now()
     session.save(update_fields=["updated_at"])
 
 
 def _sanitize_assistant_reply(text: str, max_chars: int = 4000) -> str:
+    """Trim whitespace and strip accidental echoes of our prompt scaffolding."""
+
     text = strip_leaked_prompt_echo(text)
     text = text.strip().replace("\r\n", "\n")
     return text[:max_chars]
@@ -82,9 +92,12 @@ def _sanitize_assistant_reply(text: str, max_chars: int = 4000) -> str:
 
 def _deterministic_plan_catalog_price_reply(question: str, context: dict, currency: str) -> str | None:
     """
-    Avoid LLM arithmetic errors for cheaper/pricier questions when the answer is fully determined
-    by ``plan_catalog.comparison``.
+    For simple "cheaper / pricier plan" questions, answer from precomputed lists in
+    context instead of letting the LLM miscount money.
+
+    Returns ``None`` when this shortcut does not apply so normal Groq handling runs.
     """
+
     sections = context.get("sections") or {}
     if len(sections) != 1 or "plan_catalog" not in sections:
         return None
@@ -155,6 +168,8 @@ def _deterministic_plan_catalog_price_reply(question: str, context: dict, curren
 @ensure_csrf_cookie
 @require_http_methods(["GET", "HEAD"])
 def chat_home(request):
+    """Render the chat page; pick or create the active ``ChatSession`` for this customer."""
+
     account = get_customer_account_for_user(request.user)
     if account is None:
         return render(
@@ -186,6 +201,8 @@ def chat_home(request):
 @role_required(UserProfile.Role.CUSTOMER)
 @require_POST
 def post_message(request):
+    """AJAX endpoint: append user + assistant messages after running intent + Groq pipeline."""
+
     account = get_customer_account_for_user(request.user)
     if account is None:
         return _json_errors(400, {"detail": "No customer account is linked to your user.", "errors": {"account": ""}})
@@ -349,6 +366,8 @@ def post_message(request):
 @role_required(UserProfile.Role.CUSTOMER)
 @require_POST
 def new_session(request):
+    """Start a fresh empty transcript (older sessions remain in the database)."""
+
     account = get_customer_account_for_user(request.user)
     if account is None:
         return _json_errors(400, {"detail": "No customer account is linked to your user.", "errors": {"account": ""}})

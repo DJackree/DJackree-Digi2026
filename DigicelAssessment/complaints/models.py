@@ -1,4 +1,9 @@
-"""Complaint, notes, and status history models."""
+"""Database tables for customer complaints and staff audit trails.
+
+A ``Complaint`` belongs to one ``CustomerAccount`` and can be assigned to an
+agent. Notes and status history capture what staff did and when, for reporting
+and for the customer-visible timeline (without exposing internal notes).
+"""
 
 from django.contrib.auth.models import User
 from django.db import models
@@ -6,7 +11,8 @@ from django.utils import timezone
 
 
 def generate_complaint_reference() -> str:
-    """Return next CMP-YYYY-NNNN reference for the current year (simple counter)."""
+    """Issue the next ticket id for this calendar year (for example ``CMP-2026-0007``)."""
+
     year = timezone.now().year
     prefix = f"CMP-{year}-"
     latest = (
@@ -26,6 +32,8 @@ def generate_complaint_reference() -> str:
 
 
 class Complaint(models.Model):
+    """One support ticket: category, free-text description, workflow status, assignment."""
+
     class Category(models.TextChoices):
         BILLING = "billing", "Billing"
         NETWORK = "network", "Network"
@@ -85,6 +93,8 @@ class Complaint(models.Model):
 
 
 class ComplaintNote(models.Model):
+    """Staff note attached to a ticket (internal by default; not shown on customer pages)."""
+
     complaint = models.ForeignKey(
         Complaint,
         on_delete=models.CASCADE,
@@ -109,6 +119,8 @@ class ComplaintNote(models.Model):
 
 
 class ComplaintStatusHistory(models.Model):
+    """Append-only log row each time someone changes the ticket's status."""
+
     complaint = models.ForeignKey(
         Complaint,
         on_delete=models.CASCADE,

@@ -1,3 +1,8 @@
+"""Django admin registrations for complaints and audit tables.
+
+Lets operations staff browse tickets without writing SQL.
+"""
+
 from django.contrib import admin
 
 from .models import Complaint, ComplaintNote, ComplaintStatusHistory

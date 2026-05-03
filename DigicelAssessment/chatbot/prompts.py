@@ -1,4 +1,8 @@
-"""Strict prompt construction for grounded Groq chat completions."""
+"""Text templates that tell the LLM how to behave and how to format API payloads.
+
+User-facing fallback strings (missing API key, unsupported question, etc.) also
+live here so templates and JSON endpoints stay consistent.
+"""
 
 from __future__ import annotations
 
@@ -25,6 +29,8 @@ SERVICE_TEMPORARILY_UNAVAILABLE_REPLY = (
 
 
 def build_system_prompt() -> str:
+    """Instructions sent as the model's system message: answer only from provided JSON."""
+
     return (
         "You are a telecom customer support assistant.\n"
         "Answer the customer's question using only the ACCOUNT_CONTEXT JSON provided.\n"
@@ -67,6 +73,8 @@ def build_system_prompt() -> str:
 
 
 def _recent_transcript(messages: list[ChatMessage]) -> str:
+    """Turn the last N stored chat rows into plain 'User: ... / Assistant: ...' lines."""
+
     if not messages:
         return ""
 
@@ -89,6 +97,8 @@ def build_user_prompt(
     recent_messages: list[ChatMessage],
     currency_code: str,
 ) -> str:
+    """Assemble the single user message we send to Groq: question + JSON context + transcript hint."""
+
     ctx_payload = dict(context)
     ctx_payload.setdefault("currency", currency_code)
     transcript = _recent_transcript(recent_messages)

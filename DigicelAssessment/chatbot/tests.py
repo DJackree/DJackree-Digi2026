@@ -1,4 +1,4 @@
-"""Chat persistence (Phase 1) and backend behavior (Phase 2)."""
+"""Tests for chat sessions, intent detection, Groq integration stubs, and JSON API rules."""
 
 from __future__ import annotations
 

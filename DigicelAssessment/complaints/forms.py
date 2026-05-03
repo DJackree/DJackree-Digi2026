@@ -1,4 +1,8 @@
-"""Complaint forms for Phase 2 (backend + minimal templates)."""
+"""HTML forms for filing complaints and for staff actions (status, notes, assign).
+
+These are plain Django ``Form`` classes (not model forms) so we can tune fields
+per role and attach Bootstrap CSS classes in one place.
+"""
 
 from __future__ import annotations
 
@@ -13,6 +17,8 @@ MIN_DESCRIPTION_LEN = 20
 
 
 class ComplaintCreateForm(forms.Form):
+    """Customer-facing new ticket: pick category and write a minimum-length description."""
+
     category = forms.ChoiceField(
         choices=Complaint.Category.choices,
         widget=forms.Select(attrs={"class": "form-select"}),
@@ -45,6 +51,8 @@ class ComplaintCreateForm(forms.Form):
 
 
 class ComplaintStatusUpdateForm(forms.Form):
+    """Dropdown of allowed next statuses plus optional note (staff)."""
+
     status = forms.ChoiceField(
         choices=Complaint.Status.choices,
         widget=forms.Select(attrs={"class": "form-select"}),
@@ -71,6 +79,8 @@ class ComplaintStatusUpdateForm(forms.Form):
 
 
 class ComplaintNoteForm(forms.Form):
+    """Free-text internal note for agents/admins."""
+
     body = forms.CharField(
         widget=forms.Textarea(
             attrs={
@@ -89,6 +99,8 @@ class ComplaintNoteForm(forms.Form):
 
 
 class EscalationForm(forms.Form):
+    """Reason text required when an agent escalates a ticket."""
+
     reason = forms.CharField(
         widget=forms.Textarea(
             attrs={
@@ -107,6 +119,8 @@ class EscalationForm(forms.Form):
 
 
 class ComplaintAssignmentForm(forms.Form):
+    """Admin picks any user who has the agent role."""
+
     agent = forms.ModelChoiceField(
         queryset=User.objects.none(),
         widget=forms.Select(attrs={"class": "form-select"}),
@@ -121,6 +135,8 @@ class ComplaintAssignmentForm(forms.Form):
 
 
 class AdminStatusOverrideForm(forms.Form):
+    """Admin may set any workflow status and optionally log why."""
+
     status = forms.ChoiceField(
         choices=Complaint.Status.choices,
         widget=forms.Select(attrs={"class": "form-select"}),

@@ -1,4 +1,7 @@
-"""Admin dashboard view (Phase 3 UI)."""
+"""Admin-only summary page for complaint volume and SLA risk.
+
+Uses ``get_dashboard_metrics`` so the math stays in one place for tests and reuse.
+"""
 
 from django.shortcuts import render
 from django.utils import timezone
@@ -11,11 +14,15 @@ from .services import get_dashboard_metrics
 
 
 def _complaint_age_days(complaint: Complaint) -> float:
+    """Days since the ticket was opened (used beside SLA breach table rows)."""
+
     return (timezone.now() - complaint.created_at).total_seconds() / 86400
 
 
 @role_required(UserProfile.Role.ADMIN)
 def admin_dashboard(request):
+    """Render cards and tables: counts by status/category, average resolution, SLA list."""
+
     metrics = get_dashboard_metrics()
     avg = metrics["average_resolution_time"]
     avg_display = None

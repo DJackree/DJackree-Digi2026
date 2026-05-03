@@ -1,4 +1,4 @@
-"""URL routes for AI chatbot."""
+"""Routes: browser page under ``/chatbot/`` plus POST JSON endpoints used by the page."""
 
 from django.urls import path
 

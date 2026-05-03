@@ -1,4 +1,10 @@
-"""Customer-scoped context builders for deterministic chat replies."""
+"""Build JSON "context" snippets the chatbot may use when calling Groq.
+
+Each user question is classified into one or more *intents* (plan, balance, etc.).
+This module loads only the database rows needed for those intents and turns them
+into plain dictionaries. The LLM is instructed to answer *only* from this JSON,
+so we never dump the whole customer record into the prompt.
+"""
 
 from __future__ import annotations
 
@@ -116,6 +122,8 @@ def build_plan_catalog_context(*, account: CustomerAccount | None) -> dict[str, 
 
 
 def build_plan_context(*, account: CustomerAccount | None) -> dict[str, Any]:
+    """Named fields for the subscriber's current service tier (or empty if no account)."""
+
     if account is None:
         return {"intent": "current_plan", "plan": None}
     plan = account.service_plan
@@ -132,6 +140,8 @@ def build_plan_context(*, account: CustomerAccount | None) -> dict[str, Any]:
 
 
 def build_balance_context(*, account: CustomerAccount | None) -> dict[str, Any]:
+    """How much the account owes or is in credit (string dollars for stable LLM formatting)."""
+
     if account is None:
         return {"intent": "account_balance", "current_balance": None}
     return {
@@ -141,6 +151,8 @@ def build_balance_context(*, account: CustomerAccount | None) -> dict[str, Any]:
 
 
 def _current_usage_record(account: CustomerAccount) -> AccountUsage | None:
+    """Pick the usage row covering "today" if possible, else the most recent period on file."""
+
     today = timezone.now().date()
     scoped = (
         AccountUsage.objects.filter(account=account, period_start__lte=today, period_end__gte=today)
@@ -153,6 +165,8 @@ def _current_usage_record(account: CustomerAccount) -> AccountUsage | None:
 
 
 def build_usage_context(*, account: CustomerAccount | None) -> dict[str, Any]:
+    """Data/minute/SMS consumption for the active billing slice plus plan allowance cap."""
+
     if account is None:
         return {"intent": "data_usage", "usage": None, "plan": None}
     plan = account.service_plan
@@ -177,6 +191,8 @@ def build_usage_context(*, account: CustomerAccount | None) -> dict[str, Any]:
 
 
 def build_complaints_context(*, account: CustomerAccount | None) -> dict[str, Any]:
+    """Short list of non-terminal complaints for this account (reference, type, status)."""
+
     if account is None:
         return {"intent": "open_complaints", "complaints": []}
     category_labels = dict(Complaint.Category.choices)
@@ -201,6 +217,8 @@ def build_complaints_context(*, account: CustomerAccount | None) -> dict[str, An
 
 
 def build_payment_context(*, account: CustomerAccount | None) -> dict[str, Any]:
+    """Most recent payment amount and date, if any payments exist."""
+
     if account is None:
         return {"intent": "last_payment", "payment": None}
     p = Payment.objects.filter(account=account).order_by("-paid_at").only("amount", "paid_at", "reference").first()
@@ -217,6 +235,8 @@ def build_payment_context(*, account: CustomerAccount | None) -> dict[str, Any]:
 
 
 def build_outage_context(*, account: CustomerAccount | None) -> dict[str, Any]:
+    """Active outage rows in the customer's home region (case-insensitive match)."""
+
     if account is None:
         return {"intent": "active_outages", "region": None, "outages": []}
 
@@ -236,6 +256,8 @@ def build_outage_context(*, account: CustomerAccount | None) -> dict[str, Any]:
 
 
 def build_chat_context(*, user, intent: str, account: CustomerAccount | None = None) -> dict[str, Any]:
+    """Dispatch table: pick the right builder for one intent string."""
+
     acct = account if account is not None else get_customer_account_for_user(user)
     match intent:
         case "plan_catalog":
@@ -265,11 +287,12 @@ def build_merged_chat_context(
     account: CustomerAccount | None = None,
 ) -> dict[str, Any]:
     """
-    Namespaced ACCOUNT_CONTEXT for Groq.
+    Bundle several intent snippets for one chat turn.
 
-    Contains ``sections`` keyed by grounded intent strings; values match the shapes
-    used by ``context_has_required_data`` for single-intent payloads.
+    Groq receives a single JSON blob. When the customer mixes topics ("balance and
+    outages"), we list each intent under ``sections`` so the model answers every part.
     """
+
     acct = account if account is not None else get_customer_account_for_user(user)
     unique = sorted(
         [i for i in dict.fromkeys(intents) if i in GROUNDED_CHAT_INTENTS],
@@ -301,7 +324,8 @@ def merged_context_has_required_data(intents: list[str], merged: dict[str, Any])
 
 
 def context_has_required_data(intent: str, context: dict[str, Any]) -> bool:
-    """Return False when DB context cannot ground an answer safely."""
+    """Return False if the database did not give enough fields to answer safely."""
+
     if intent == "plan_catalog":
         return bool(context.get("plans"))
     if intent == "current_plan":

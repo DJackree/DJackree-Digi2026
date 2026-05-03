@@ -1,4 +1,9 @@
-"""Foundation seed data: users, profiles, plans, accounts, complaints demo (Phase 1 module)."""
+"""Fill the database with demo people, accounts, tickets, and outages.
+
+Intended for first-time setup: Docker calls ``seed_data --if-empty`` so reviewers
+see a realistic portal without manual SQL. Re-running on a non-empty database is
+skipped on purpose to avoid duplicate accounts.
+"""
 
 from __future__ import annotations
 
