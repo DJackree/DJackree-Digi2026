@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "complaints",
     "network",
     "dashboard",
+    "chatbot",
     "core",
 ]
 
