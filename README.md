@@ -73,6 +73,26 @@ Passwords are set in [`DigicelAssessment/core/management/commands/seed_data.py`]
 | **Customer** | `customer4` | `CustomerPass123!` |
 | **Customer** | `customer5` | `CustomerPass123!` |
 
+## Assumptions and design decisions
+
+These are the main choices where the brief allowed interpretation or where implementation detail was left open.
+
+- **User management for admins.** The assessment calls for admins who can “manage users.” That is implemented with Django’s built-in **`/admin/`** interface for `User`, `UserProfile`, and related models. The custom **admin portal** (`/admin-portal/`) focuses on complaints, assignment, and the metrics dashboard—not a second user-CRUD UI.
+
+- **SLA breach rule.** The spec suggests treating tickets still open after about **five days** as breaching SLA. That threshold is implemented in code for the dashboard and filters; it is a simple calendar rule, not business-hours logic.
+
+- **First-run seeding.** `seed_data --if-empty` runs on container startup. If **any** user already exists, seeding is skipped so repeat `docker compose up` does not duplicate demo data. A full re-seed requires clearing the database volume (or an empty database).
+
+- **Roles and access.** Each login maps to one **`UserProfile` role** (customer, agent, admin). Views use decorators to enforce which URLs each role may hit. Customers never receive complaint workflow actions—only read their own tickets and status.
+
+- **Complaint workflow.** Agents may move tickets only **forward** along the defined path and only on **assigned** tickets. Admins may set **any** status and assign agents, matching the separation described in the brief.
+
+- **Chatbot grounding.** Questions are mapped to **intents** with rule-based detection; only the database slices needed for those intents are serialized into **context JSON** passed to Groq, with a system prompt that answers **only** from that context and uses a fixed phrase when data is missing. Some plan-pricing comparisons use **deterministic** answers from precomputed context to avoid arithmetic mistakes by the model.
+
+- **Demo credentials.** Seeded passwords are **deterministic strings** in `seed_data.py` for reviewers only, not a production security pattern.
+
+- **Stack scope.** The front end is **Django templates and Bootstrap** (no React), which satisfies the “and/or React” requirement. The app is intended for **local/demo** use: `DEBUG` defaults friendly for development; production hardening is out of scope.
+
 ## AI usage workflow
 
 Given the number of requirements in the project brief and the short delivery timeframe, I worked with the assumption that AI usage was encouraged because the project description explicitly asked for transparency around AI-assisted work. Based on that assumption, I used AI heavily to help turn my implementation ideas into a complete working assessment while still reviewing, adjusting, and debugging the output myself.
