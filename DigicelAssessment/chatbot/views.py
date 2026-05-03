@@ -14,22 +14,37 @@ from django.views.decorators.http import require_http_methods, require_POST
 from accounts.decorators import role_required
 from accounts.models import UserProfile
 
-from chatbot.context import build_chat_context, context_has_required_data
+from chatbot.context import (
+    build_merged_chat_context,
+    merged_context_has_required_data,
+)
 from chatbot.groq_client import (
     ChatbotGroqBadResponse,
     ChatbotGroqMisconfigured,
     ChatbotGroqTransientError,
     ask_groq,
 )
-from chatbot.intents import detect_intent
+from chatbot.intents import detect_intents, dialogue_state_from_messages
 from chatbot.models import ChatMessage, ChatSession
 from chatbot.prompts import (
     MISSING_API_KEY_REPLY,
     MISSING_INFORMATION_PHRASE,
     SERVICE_TEMPORARILY_UNAVAILABLE_REPLY,
     UNSUPPORTED_USER_QUESTION_REPLY,
+    strip_leaked_prompt_echo,
 )
 from customers.services import get_customer_account_for_user
+
+CHATBOT_SUGGESTED_QUESTIONS = [
+    "What plan am I currently on?",
+    "What plans are available?",
+    "What is my current account balance?",
+    "How much data have I used this month?",
+    "Do I have any open complaints?",
+    "When was my last payment made?",
+    "Are there outages affecting my area?",
+    "Is there a cheaper plan than what I have?",
+]
 
 
 def _json_errors(status: int, payload: dict) -> JsonResponse:
@@ -38,27 +53,19 @@ def _json_errors(status: int, payload: dict) -> JsonResponse:
     return JsonResponse(body, status=status)
 
 
-def _recent_user_intent(messages: list[ChatMessage]) -> str | None:
-    for msg in reversed(messages):
-        if msg.role == ChatMessage.Role.USER and (msg.intent or "").strip():
-            if msg.intent == "unsupported":
-                return None
-            return msg.intent
-    return None
+def _resolve_customer_chat_session(request) -> ChatSession:
+    """Return session from ``?session=`` when valid; else freshest by ``updated_at``; else create."""
+    owned = ChatSession.objects.filter(user=request.user)
+    param = (request.GET.get("session") or "").strip()
+    if param.isdigit():
+        selected = owned.filter(pk=int(param)).first()
+        if selected is not None:
+            return selected
 
+    newest = owned.order_by("-updated_at", "-pk").first()
+    if newest is not None:
+        return newest
 
-def _latest_session(request) -> ChatSession | None:
-    return (
-        ChatSession.objects.filter(user=request.user)
-        .order_by("-updated_at", "-pk")
-        .first()
-    )
-
-
-def _get_or_create_latest_session(request) -> ChatSession:
-    existing = _latest_session(request)
-    if existing:
-        return existing
     return ChatSession.objects.create(user=request.user)
 
 
@@ -68,8 +75,80 @@ def _touch_session(session: ChatSession) -> None:
 
 
 def _sanitize_assistant_reply(text: str, max_chars: int = 4000) -> str:
+    text = strip_leaked_prompt_echo(text)
     text = text.strip().replace("\r\n", "\n")
     return text[:max_chars]
+
+
+def _deterministic_plan_catalog_price_reply(question: str, context: dict, currency: str) -> str | None:
+    """
+    Avoid LLM arithmetic errors for cheaper/pricier questions when the answer is fully determined
+    by ``plan_catalog.comparison``.
+    """
+    sections = context.get("sections") or {}
+    if len(sections) != 1 or "plan_catalog" not in sections:
+        return None
+    comp = (sections.get("plan_catalog") or {}).get("comparison") or {}
+    yname = comp.get("your_plan_name")
+    yprice = comp.get("your_monthly_price")
+    if not yname or yprice is None:
+        return None
+    q = question.lower()
+    asks_cheaper = any(
+        p in q
+        for p in (
+            "cheaper",
+            "less expensive",
+            "lower price",
+            "cost less",
+            "pay less",
+            "lower tier",
+        )
+    )
+    asks_pricier = any(
+        p in q
+        for p in (
+            "more expensive",
+            "pricier",
+            "higher price",
+            "cost more",
+            "pay more",
+            "higher tier",
+        )
+    )
+    if not asks_cheaper and not asks_pricier:
+        return None
+    lower = comp.get("plans_with_lower_monthly_price_than_yours") or []
+    higher = comp.get("plans_with_higher_monthly_price_than_yours") or []
+    if asks_cheaper:
+        if lower:
+            listed = ", ".join(
+                f"{p['name']} ({currency} {p['monthly_price']}/month)" for p in lower
+            )
+            return (
+                f"Yes — these listed plans have a lower monthly price than yours "
+                f"({yname}, {currency} {yprice}/month): {listed}."
+            )
+        if comp.get("cheapest_plan_name") == yname:
+            return (
+                f"You're on {yname} ({currency} {yprice}/month), which is already the lowest monthly-price "
+                "plan in our catalog — there isn't a cheaper plan listed."
+            )
+    if asks_pricier:
+        if higher:
+            listed = ", ".join(
+                f"{p['name']} ({currency} {p['monthly_price']}/month)" for p in higher
+            )
+            return (
+                f"Yes — these listed plans have a higher monthly price than yours "
+                f"({yname}, {currency} {yprice}/month): {listed}."
+            )
+        if comp.get("priciest_plan_name") == yname:
+            return (
+                f"You're on {yname} ({currency} {yprice}/month), the highest monthly-price plan in our catalog — "
+                "there isn't a more expensive plan listed."
+            )
+    return None
 
 
 @role_required(UserProfile.Role.CUSTOMER)
@@ -83,22 +162,23 @@ def chat_home(request):
             "chatbot/chat.html",
             {
                 "no_account": True,
-                "messages": [],
+                "chat_messages": [],
                 "session": None,
                 "max_chars": getattr(settings, "CHATBOT_MESSAGE_MAX_LENGTH", 1000),
             },
         )
 
-    session = _get_or_create_latest_session(request)
-    messages = list(session.messages.order_by("created_at"))
+    session = _resolve_customer_chat_session(request)
+    chat_messages = list(session.messages.order_by("created_at"))
     return render(
         request,
         "chatbot/chat.html",
         {
             "no_account": False,
             "session": session,
-            "messages": messages,
+            "chat_messages": chat_messages,
             "max_chars": getattr(settings, "CHATBOT_MESSAGE_MAX_LENGTH", 1000),
+            "suggested_questions": CHATBOT_SUGGESTED_QUESTIONS,
         },
     )
 
@@ -151,40 +231,58 @@ def post_message(request):
         )
 
     prior = list(session.messages.order_by("created_at"))
-    recent_hint = _recent_user_intent(prior)
-    intent = detect_intent(text, recent_intent=recent_hint)
+    dialogue_state = dialogue_state_from_messages(prior)
+    intents = detect_intents(text, dialogue_state)
+    primary_intent = intents[0] if intents else "unsupported"
 
     ChatMessage.objects.create(
         session=session,
         role=ChatMessage.Role.USER,
         content=text,
-        intent=intent,
+        intent=primary_intent,
     )
     _touch_session(session)
     transcripts = list(session.messages.order_by("created_at"))
 
-    if intent == "unsupported":
+    if primary_intent == "unsupported":
         assistant_text = UNSUPPORTED_USER_QUESTION_REPLY
         ChatMessage.objects.create(
             session=session,
             role=ChatMessage.Role.ASSISTANT,
             content=assistant_text,
-            intent=intent,
+            intent=primary_intent,
         )
         _touch_session(session)
-        return JsonResponse({"ok": True, "session_id": session.pk, "intent": intent, "message": assistant_text})
+        return JsonResponse(
+            {
+                "ok": True,
+                "session_id": session.pk,
+                "intent": primary_intent,
+                "intents": [],
+                "message": assistant_text,
+            }
+        )
 
-    context = build_chat_context(user=request.user, intent=intent, account=account)
-    if not context_has_required_data(intent, context):
+    grounded = [ink for ink in intents if ink != "unsupported"]
+    context = build_merged_chat_context(user=request.user, intents=grounded, account=account)
+    if not merged_context_has_required_data(grounded, context):
         assistant_text = MISSING_INFORMATION_PHRASE
         ChatMessage.objects.create(
             session=session,
             role=ChatMessage.Role.ASSISTANT,
             content=assistant_text,
-            intent=intent,
+            intent=primary_intent,
         )
         _touch_session(session)
-        return JsonResponse({"ok": True, "session_id": session.pk, "intent": intent, "message": assistant_text})
+        return JsonResponse(
+            {
+                "ok": True,
+                "session_id": session.pk,
+                "intent": primary_intent,
+                "intents": grounded,
+                "message": assistant_text,
+            }
+        )
 
     if not getattr(settings, "GROQ_API_KEY", None):
         assistant_text = MISSING_API_KEY_REPLY
@@ -192,28 +290,40 @@ def post_message(request):
             session=session,
             role=ChatMessage.Role.ASSISTANT,
             content=assistant_text,
-            intent=intent,
+            intent=primary_intent,
         )
         _touch_session(session)
-        return JsonResponse({"ok": True, "session_id": session.pk, "intent": intent, "message": assistant_text})
+        return JsonResponse(
+            {
+                "ok": True,
+                "session_id": session.pk,
+                "intent": primary_intent,
+                "intents": grounded,
+                "message": assistant_text,
+            }
+        )
 
     currency = getattr(settings, "CHATBOT_DEFAULT_CURRENCY", "JMD")
 
     assistant_text = ""
-    try:
-        assistant_reply = ask_groq(
-            question=text,
-            context=context,
-            recent_messages=transcripts,
-            currency_code=currency,
-        )
-        assistant_text = _sanitize_assistant_reply(assistant_reply)
-    except ChatbotGroqMisconfigured:
-        assistant_text = MISSING_API_KEY_REPLY
-    except (ChatbotGroqTransientError, ChatbotGroqBadResponse):
-        assistant_text = SERVICE_TEMPORARILY_UNAVAILABLE_REPLY
-    except Exception:
-        assistant_text = SERVICE_TEMPORARILY_UNAVAILABLE_REPLY
+    deterministic = _deterministic_plan_catalog_price_reply(text, context, currency)
+    if deterministic:
+        assistant_text = _sanitize_assistant_reply(deterministic)
+    else:
+        try:
+            assistant_reply = ask_groq(
+                question=text,
+                context=context,
+                recent_messages=transcripts,
+                currency_code=currency,
+            )
+            assistant_text = _sanitize_assistant_reply(assistant_reply)
+        except ChatbotGroqMisconfigured:
+            assistant_text = MISSING_API_KEY_REPLY
+        except (ChatbotGroqTransientError, ChatbotGroqBadResponse):
+            assistant_text = SERVICE_TEMPORARILY_UNAVAILABLE_REPLY
+        except Exception:
+            assistant_text = SERVICE_TEMPORARILY_UNAVAILABLE_REPLY
 
     if not assistant_text:
         assistant_text = SERVICE_TEMPORARILY_UNAVAILABLE_REPLY
@@ -221,11 +331,19 @@ def post_message(request):
         session=session,
         role=ChatMessage.Role.ASSISTANT,
         content=assistant_text,
-        intent=intent,
+        intent=primary_intent,
     )
     _touch_session(session)
 
-    return JsonResponse({"ok": True, "session_id": session.pk, "intent": intent, "message": assistant_text})
+    return JsonResponse(
+        {
+            "ok": True,
+            "session_id": session.pk,
+            "intent": primary_intent,
+            "intents": grounded,
+            "message": assistant_text,
+        }
+    )
 
 
 @role_required(UserProfile.Role.CUSTOMER)

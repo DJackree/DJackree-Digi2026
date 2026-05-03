@@ -8,9 +8,37 @@ from typing import Any
 from django.utils import timezone
 
 from complaints.models import Complaint
-from customers.models import AccountUsage, CustomerAccount, Payment
+from customers.models import AccountUsage, CustomerAccount, Payment, ServicePlan
 from customers.services import get_customer_account_for_user
 from network.models import NetworkOutage
+
+GROUNDED_CHAT_INTENTS = frozenset(
+    {
+        "plan_catalog",
+        "current_plan",
+        "account_balance",
+        "data_usage",
+        "open_complaints",
+        "last_payment",
+        "active_outages",
+    }
+)
+
+
+def _intent_sort_key(intent: str) -> int:
+    order = (
+        "plan_catalog",
+        "current_plan",
+        "account_balance",
+        "data_usage",
+        "open_complaints",
+        "last_payment",
+        "active_outages",
+    )
+    try:
+        return order.index(intent)
+    except ValueError:
+        return 999
 
 
 OPEN_STATUSES = {
@@ -22,6 +50,69 @@ OPEN_STATUSES = {
 
 def _money_str(amount: Decimal) -> str:
     return f"{amount.quantize(Decimal('0.01'))}"
+
+
+def build_plan_catalog_context(*, account: CustomerAccount | None) -> dict[str, Any]:
+    """All retail service plans for listing / price-tier comparison (plus the customer's current plan)."""
+    qs = list(ServicePlan.objects.all().order_by("monthly_price", "name"))
+    rows: list[dict[str, Any]] = []
+    for p in qs:
+        rows.append(
+            {
+                "name": p.name,
+                "monthly_price": _money_str(p.monthly_price),
+                "data_allowance_gb": _money_str(p.data_allowance_gb),
+                "call_minutes": p.call_minutes,
+                "sms_allowance": p.sms_allowance,
+            }
+        )
+    your_plan = None
+    if account is not None:
+        your_plan = build_plan_context(account=account).get("plan")
+
+    comparison: dict[str, Any]
+    if rows:
+        comparison = {
+            "cheapest_plan_name": rows[0]["name"],
+            "cheapest_monthly_price": rows[0]["monthly_price"],
+            "priciest_plan_name": rows[-1]["name"],
+            "priciest_monthly_price": rows[-1]["monthly_price"],
+        }
+    else:
+        comparison = {
+            "cheapest_plan_name": None,
+            "cheapest_monthly_price": None,
+            "priciest_plan_name": None,
+            "priciest_monthly_price": None,
+        }
+
+    if your_plan:
+        yp = Decimal(your_plan["monthly_price"])
+        comparison["your_plan_name"] = your_plan["name"]
+        comparison["your_monthly_price"] = your_plan["monthly_price"]
+        lower: list[dict[str, str]] = []
+        higher: list[dict[str, str]] = []
+        for row in rows:
+            rp = Decimal(row["monthly_price"])
+            if rp < yp:
+                lower.append({"name": row["name"], "monthly_price": row["monthly_price"]})
+            elif rp > yp:
+                higher.append({"name": row["name"], "monthly_price": row["monthly_price"]})
+        comparison["plans_with_lower_monthly_price_than_yours"] = lower
+        comparison["plans_with_higher_monthly_price_than_yours"] = higher
+    else:
+        comparison["your_plan_name"] = None
+        comparison["your_monthly_price"] = None
+        comparison["plans_with_lower_monthly_price_than_yours"] = []
+        comparison["plans_with_higher_monthly_price_than_yours"] = []
+
+    return {
+        "intent": "plan_catalog",
+        "your_plan": your_plan,
+        "plans": rows,
+        "by_price_low_to_high": [p.name for p in qs],
+        "comparison": comparison,
+    }
 
 
 def build_plan_context(*, account: CustomerAccount | None) -> dict[str, Any]:
@@ -147,6 +238,8 @@ def build_outage_context(*, account: CustomerAccount | None) -> dict[str, Any]:
 def build_chat_context(*, user, intent: str, account: CustomerAccount | None = None) -> dict[str, Any]:
     acct = account if account is not None else get_customer_account_for_user(user)
     match intent:
+        case "plan_catalog":
+            return build_plan_catalog_context(account=acct)
         case "current_plan":
             return build_plan_context(account=acct)
         case "account_balance":
@@ -165,8 +258,52 @@ def build_chat_context(*, user, intent: str, account: CustomerAccount | None = N
             return {"intent": "unsupported"}
 
 
+def build_merged_chat_context(
+    *,
+    user,
+    intents: list[str],
+    account: CustomerAccount | None = None,
+) -> dict[str, Any]:
+    """
+    Namespaced ACCOUNT_CONTEXT for Groq.
+
+    Contains ``sections`` keyed by grounded intent strings; values match the shapes
+    used by ``context_has_required_data`` for single-intent payloads.
+    """
+    acct = account if account is not None else get_customer_account_for_user(user)
+    unique = sorted(
+        [i for i in dict.fromkeys(intents) if i in GROUNDED_CHAT_INTENTS],
+        key=_intent_sort_key,
+    )
+    sections: dict[str, dict[str, Any]] = {}
+    for ink in unique:
+        sections[ink] = dict(build_chat_context(user=user, intent=ink, account=acct))
+
+    return {
+        "multi": len(unique) > 1,
+        "intents": unique,
+        "sections": sections,
+    }
+
+
+def merged_context_has_required_data(intents: list[str], merged: dict[str, Any]) -> bool:
+    """Require every grounded intent passed to Groq (or deterministic reply) has sufficient DB."""
+    secs = merged.get("sections") or {}
+    for ink in intents:
+        if ink not in GROUNDED_CHAT_INTENTS:
+            continue
+        snippet = secs.get(ink)
+        if not snippet:
+            return False
+        if not context_has_required_data(ink, snippet):
+            return False
+    return True
+
+
 def context_has_required_data(intent: str, context: dict[str, Any]) -> bool:
     """Return False when DB context cannot ground an answer safely."""
+    if intent == "plan_catalog":
+        return bool(context.get("plans"))
     if intent == "current_plan":
         return bool(context.get("plan"))
     if intent == "account_balance":
