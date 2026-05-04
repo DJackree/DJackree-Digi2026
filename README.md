@@ -1,6 +1,16 @@
 # Digicel Assessment — Telecom Customer Portal
 
-Django app with PostgreSQL and a Groq-backed customer chatbot. Run everything with Docker Compose (no extra manual steps after `.env` is configured).
+## Project overview
+
+This repository is a **Telecom Customer Portal** built for the Digicel take-home assessment. It delivers two main capabilities:
+
+1. **Complaint and fault management** — Customers with linked accounts can **submit complaints**, view **their own** ticket history, and **track status** (they cannot change workflow states). **Agents** see a **queue of complaints assigned to them** (oldest first), can **move status** forward along the defined lifecycle, add **internal notes**, and **escalate** with a reason. **Admins** see **all complaints**, can **assign or reassign agents**, set **any status**, and use a **summary dashboard**: totals **by status** and **by category**, **average resolution time** (from open to resolved), and tickets **past an SLA window** (still open after several days, per implementation). Staff **user and profile maintenance** is done via Django’s built-in **`/admin/`** site; the custom **admin portal** under `/admin-portal/` focuses on complaints and metrics.
+
+2. **AI customer chatbot** — **Logged-in customers** (only) can use a **chat UI** at `/chatbot/` to ask natural-language questions about **their** plan, balance, usage, open complaints, last payment, regional outages, and related topics. Answers are **grounded in database data** passed to the model as context, with prompts that **forbid inventing** account facts. Conversation **history is kept per chat session**.
+
+**Stack:** Python and **Django**, **PostgreSQL**, **Bootstrap** templates, **Docker Compose** for the full stack, and **Groq** (`llama-3.1-8b-instant`) for LLM replies. See [`Documentation/`](Documentation/) for deeper technical notes.
+
+After you configure `.env`, the app is meant to run with **Docker only** — no extra manual migration or seed commands on first boot.
 
 ## Prerequisites
 
@@ -32,8 +42,12 @@ Edit `.env` and set values for your machine. **Do not commit** `.env`; use it lo
 | `GROQ_MODEL` | *(Optional)* Defaults to `llama-3.1-8b-instant`. |
 | `GROQ_TIMEOUT_SECONDS` | *(Optional)* Groq request timeout. |
 | `CHATBOT_MESSAGE_MAX_LENGTH` | *(Optional)* Max incoming chat message length. |
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | *(Optional)* Comma-separated origins for CSRF (defaults include `http://localhost:8000`). |
+| `GROQ_MAX_COMPLETION_TOKENS` | *(Optional)* Cap on tokens for each Groq completion (default in `settings.py`). |
+| `CHATBOT_RECENT_MESSAGE_COUNT` | *(Optional)* How many prior turns are summarized for the model as conversation memory. |
+| `CHATBOT_DEFAULT_CURRENCY` | *(Optional)* Currency label shown in chat prompts (default `JMD`). |
 
-**Chatbot:** the app expects a valid `GROQ_API_KEY` in `.env` for full chatbot behaviour. Optional variables above can be omitted unless you need to override defaults.
+For **Groq setup and behaviour** (required key, URLs, defaults), see **Chatbot setup** below.
 
 ## Run with Docker
 
@@ -72,6 +86,53 @@ Passwords are set in [`DigicelAssessment/core/management/commands/seed_data.py`]
 | **Customer** | `customer3` | `CustomerPass123!` |
 | **Customer** | `customer4` | `CustomerPass123!` |
 | **Customer** | `customer5` | `CustomerPass123!` |
+
+## Chatbot setup
+
+The chatbot uses the **Groq API** and the **`llama-3.1-8b-instant`** model by default (assessment requirement). The `groq` Python package is already listed in [`DigicelAssessment/requirements.txt`](DigicelAssessment/requirements.txt) and is installed when the Docker image builds.
+
+### 1. Get an API key
+
+Create a free key at [Groq Console](https://console.groq.com) (no credit card on the free tier).
+
+### 2. Configure the environment
+
+In [`DigicelAssessment/.env`](DigicelAssessment/.env) (created from [`.env.example`](DigicelAssessment/.env.example)):
+
+- Set **`GROQ_API_KEY`** to your key. **Do not commit** this file; submit real values only in the separate `env_config.txt` (or equivalent) per assessment instructions.
+
+### 3. Optional tuning (same `.env`)
+
+These have defaults in Django settings; override only if needed:
+
+| Variable | Purpose |
+|----------|---------|
+| `GROQ_MODEL` | Model id (default `llama-3.1-8b-instant`). |
+| `GROQ_TIMEOUT_SECONDS` | Request timeout to Groq. |
+| `GROQ_MAX_COMPLETION_TOKENS` | Upper bound on completion length. |
+| `CHATBOT_MESSAGE_MAX_LENGTH` | Max length for a single user message in the UI/API. |
+| `CHATBOT_RECENT_MESSAGE_COUNT` | How many recent messages feed into the prompt as transcript context. |
+| `CHATBOT_DEFAULT_CURRENCY` | Currency code in prompts (e.g. `JMD`). |
+
+### 4. Run the application
+
+Start the stack as in **Run with Docker** (for example `docker compose up --build` from `DigicelAssessment/`). No separate “chatbot service” container is required — the `web` process calls Groq when customers send messages.
+
+### 5. Use the chatbot in the UI
+
+1. Sign in as a **customer** (for example `customer1` — see **Default login credentials**).
+2. Open **http://localhost:8000/chatbot/** (or use the Chat link from the customer home navigation).
+3. Ask account-related questions; replies use **your** seeded `CustomerAccount` data and related records.
+
+Agents and admins **do not** have access to this chat UI by design.
+
+### 6. If the API key is missing
+
+If `GROQ_API_KEY` is empty, the app still loads, but the assistant returns a **clear configuration message** instead of calling Groq. Set the key to exercise full LLM behaviour.
+
+### 7. Automated tests
+
+The test suite **does not require** a live Groq key for most cases; tests **mock** the client where appropriate. Running tests locally still needs PostgreSQL per [`Documentation/commands.md`](Documentation/commands.md).
 
 ## Assumptions and design decisions
 
